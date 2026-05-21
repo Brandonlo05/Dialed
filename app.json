@@ -16,8 +16,14 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.brandonlo05.dialed",
+      "entitlements": {
+        "com.apple.developer.healthkit": true,
+        "com.apple.developer.healthkit.access": []
+      },
       "infoPlist": {
-        "UIBackgroundModes": ["audio"]
+        "UIBackgroundModes": ["audio"],
+        "NSHealthShareUsageDescription": "Dialed reads heart rate data from Apple Watch to optimize your binaural focus session in real time.",
+        "NSHealthUpdateUsageDescription": "Dialed writes workout session data to HealthKit to track your focus history."
       }
     },
     "android": {
