@@ -25,3 +25,19 @@ export async function setCarrierFrequency(hz: number): Promise<void> {
   if (Platform.OS !== 'ios') return;
   await DialedAudioModule.setCarrierFrequency(hz);
 }
+
+export async function setBeatFrequency(hz: number): Promise<void> {
+  if (Platform.OS !== 'ios') return;
+  await DialedAudioModule.setBeatFrequency(hz);
+}
+
+/** level: 0.0 – 1.0 */
+export async function setVolume(level: number): Promise<void> {
+  if (Platform.OS !== 'ios') return;
+  await DialedAudioModule.setVolume(Math.max(0, Math.min(1, level)));
+}
+
+export async function setBrownNoiseEnabled(enabled: boolean): Promise<void> {
+  if (Platform.OS !== 'ios') return;
+  await DialedAudioModule.setBrownNoiseEnabled(enabled);
+}

@@ -10,6 +10,8 @@ type DialedAudioNative = {
   startSession(config: AudioSessionConfig): Promise<void>;
   stopSession(): Promise<void>;
   setCarrierFrequency(hz: number): Promise<void>;
+  setBeatFrequency(hz: number): Promise<void>;
+  setVolume(level: number): Promise<void>;
   setBrownNoiseEnabled(enabled: boolean): Promise<void>;
 };
 
