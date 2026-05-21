@@ -1,0 +1,13 @@
+---
+description: Dialed sources of truth — read before implementing features
+alwaysApply: true
+---
+
+# Dialed context
+
+Before changing architecture, audio, biometrics, Spotify integration, or UX flows, read these repo-root documents in full:
+
+- [DIALED_ARCHITECTURE_SPEC.md](../../DIALED_ARCHITECTURE_SPEC.md)
+- [SYSTEM_PROMPT.md](../../SYSTEM_PROMPT.md)
+
+Treat them as authoritative over generic patterns. If they conflict with a suggestion, follow the spec.

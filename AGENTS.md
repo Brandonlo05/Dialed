@@ -1,3 +1,24 @@
-# Expo HAS CHANGED
+# Dialed — agent instructions
 
-Read the exact versioned docs at https://docs.expo.dev/versions/v54.0.0/ before writing any code.
+## Sources of truth
+
+Always read before implementing:
+
+- [DIALED_ARCHITECTURE_SPEC.md](./DIALED_ARCHITECTURE_SPEC.md)
+- [SYSTEM_PROMPT.md](./SYSTEM_PROMPT.md)
+
+## Stack
+
+- Expo SDK 54, TypeScript, NativeWind v4 (dark-first UI)
+- Custom dev client + EAS (`eas.json`) for native Swift modules
+- Native audio: `modules/dialed-audio` (iOS `AVAudioEngine`)
+- watchOS companion: `ios/DialedWatch` (scaffold)
+- Harmonic matcher: `src/services/harmonicMatcher.ts`
+
+## Commands
+
+```bash
+npm start          # Expo dev server
+npm run ios        # iOS simulator (dev client after prebuild)
+npx expo prebuild  # Generate ios/ android/ for native work
+```
