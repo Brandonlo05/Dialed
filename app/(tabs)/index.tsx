@@ -1,6 +1,5 @@
-import { useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GlassCard } from '../../src/components/GlassCard';
@@ -9,7 +8,6 @@ import { FOCUS_MODES, STAT_BOXES, type FocusModeId } from '../../src/constants/m
 import { startAudioSession, stopAudioSession } from '../../src/services/audioEngine';
 
 export default function DashboardScreen() {
-  const router = useRouter();
   const [activeMode, setActiveMode] = useState<FocusModeId | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
 
@@ -29,12 +27,14 @@ export default function DashboardScreen() {
       await startAudioSession({
         carrierHz: mode.carrierHz,
         beatHz: mode.beatHz,
-        brownNoiseEnabled: modeId === 'calm-reset',
+        brownNoiseEnabled: modeId === 'standard-focus',
       });
       setIsPlaying(true);
     },
     [activeMode, isPlaying],
   );
+
+  const activeModeData = FOCUS_MODES.find((m) => m.id === activeMode);
 
   return (
     <SafeAreaView className="flex-1 bg-dialed-bg" edges={['top']}>
@@ -43,60 +43,61 @@ export default function DashboardScreen() {
         contentContainerClassName="pb-10"
         showsVerticalScrollIndicator={false}
       >
-        <View className="mb-6 mt-2 flex-row items-end justify-between">
-          <View>
-            <Text className="text-xs font-medium uppercase tracking-[3px] text-dialed-muted">
-              Dialed
+        {/* Header */}
+        <View className="mb-8 mt-4">
+          <Text className="text-[11px] font-semibold uppercase tracking-[4px] text-dialed-muted">
+            Binaural Focus
+          </Text>
+          <Text className="mt-0.5 text-[34px] font-black tracking-tight text-dialed-stat">
+            Dialed
+          </Text>
+          <View className="mt-2 flex-row items-center" style={{ gap: 6 }}>
+            <View
+              className="h-1.5 w-1.5 rounded-full"
+              style={{
+                backgroundColor: isPlaying ? '#4ade80' : 'rgba(255,255,255,0.18)',
+              }}
+            />
+            <Text className="text-xs text-dialed-muted">
+              {isPlaying && activeModeData
+                ? `${activeModeData.title} · ${activeModeData.beatHz} Hz · Active`
+                : 'Select a mode to begin entrainment'}
             </Text>
-            <Text className="mt-1 text-3xl font-bold text-dialed-stat">Focus Dashboard</Text>
-          </View>
-          <View className="flex-row gap-2">
-            <Pressable
-              onPress={() => router.push('/settings')}
-              className="rounded-full border border-dialed-border px-3 py-2"
-            >
-              <Text className="text-xs text-dialed-muted">Settings</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => router.push('/profile')}
-              className="rounded-full border border-dialed-border px-3 py-2"
-            >
-              <Text className="text-xs text-dialed-muted">Profile</Text>
-            </Pressable>
           </View>
         </View>
 
-        <Text className="mb-3 text-sm font-medium text-dialed-muted">Entrainment modes</Text>
+        {/* Mode Cards */}
+        <Text className="mb-3 text-[11px] font-semibold uppercase tracking-[3px] text-dialed-muted">
+          Entrainment Modes
+        </Text>
         {FOCUS_MODES.map((mode) => (
           <GlassCard
             key={mode.id}
             title={mode.title}
             subtitle={mode.subtitle}
             accent={mode.accent}
+            icon={mode.icon}
             selected={activeMode === mode.id}
             onPress={() => toggleMode(mode.id)}
           />
         ))}
 
-        <Text className="mb-3 mt-6 text-sm font-medium text-dialed-muted">Performance metrics</Text>
-        <View className="flex-row flex-wrap gap-2">
+        {/* Stats Grid */}
+        <Text className="mb-3 mt-6 text-[11px] font-semibold uppercase tracking-[3px] text-dialed-muted">
+          Performance Metrics
+        </Text>
+        <View className="flex-row flex-wrap" style={{ gap: 10 }}>
           {STAT_BOXES.map((stat) => (
-            <View key={stat.label} className="w-[48%]">
-              <StatBox value={stat.value} label={stat.label} detail={stat.detail} />
+            <View key={stat.label} style={{ width: '47.5%' }}>
+              <StatBox
+                value={stat.value}
+                label={stat.label}
+                detail={stat.detail}
+                accentColor={stat.accentColor}
+              />
             </View>
           ))}
         </View>
-
-        {isPlaying && activeMode ? (
-          <View className="mt-6 rounded-xl border border-dialed-accent/40 bg-dialed-accent/10 p-4">
-            <Text className="text-sm font-semibold text-dialed-stat">
-              Session active · {FOCUS_MODES.find((m) => m.id === activeMode)?.title}
-            </Text>
-            <Text className="mt-1 text-xs text-dialed-muted">
-              Parallel playback enabled — mixes with Spotify without ducking.
-            </Text>
-          </View>
-        ) : null}
       </ScrollView>
     </SafeAreaView>
   );

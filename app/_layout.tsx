@@ -17,8 +17,6 @@ export default function RootLayout() {
         }}
       >
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="settings" options={{ title: 'Settings' }} />
-        <Stack.Screen name="profile" options={{ title: 'Profile' }} />
       </Stack>
     </View>
   );
