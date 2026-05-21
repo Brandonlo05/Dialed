@@ -13,7 +13,7 @@ import {
 export default function RootLayout() {
   // Forward Spotify OAuth deep-links from cold-start (app was not running)
   useEffect(() => {
-    Linking.getInitialURL().then((url) => {
+    void Linking.getInitialURL().then((url) => {
       if (url?.startsWith(SPOTIFY_CALLBACK_SCHEME)) {
         void handleSpotifyCallback(url);
       }
