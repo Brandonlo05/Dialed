@@ -13,15 +13,18 @@ Cursor loads them via [`.cursor/rules/dialed.mdc`](.cursor/rules/dialed.mdc) and
 
 ## Setup
 
+Use a path **without spaces** (e.g. `/Users/BLO/DialedApp`).
+
 ```bash
-export PATH="$HOME/.local/node/bin:$PATH"  # if using portable Node
-npm install
+source scripts/env.sh
+npm install --legacy-peer-deps
 npm start
 ```
 
 ## Native development build
 
 ```bash
+source scripts/env.sh
 npx expo prebuild
 npx expo run:ios
 # or EAS:
