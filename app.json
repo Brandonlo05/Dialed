@@ -21,7 +21,9 @@
         "com.apple.developer.healthkit.access": []
       },
       "infoPlist": {
-        "UIBackgroundModes": ["audio"],
+        "UIBackgroundModes": [
+          "audio"
+        ],
         "NSHealthShareUsageDescription": "Dialed reads heart rate data from Apple Watch to optimize your binaural focus session in real time.",
         "NSHealthUpdateUsageDescription": "Dialed writes workout session data to HealthKit to track your focus history."
       }
@@ -40,7 +42,8 @@
     "plugins": [
       "expo-router",
       "expo-dev-client",
-      "./plugins/withIosPodfilePatch.js"
+      "./plugins/withIosPodfilePatch.js",
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true
