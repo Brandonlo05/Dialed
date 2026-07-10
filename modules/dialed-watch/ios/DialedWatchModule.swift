@@ -31,7 +31,7 @@ public class DialedWatchModule: Module {
             self.bridge.activate()
         }
 
-        Function("isWatchReachable") -> Bool {
+        Function("isWatchReachable") {
             self.bridge.isReachable
         }
     }

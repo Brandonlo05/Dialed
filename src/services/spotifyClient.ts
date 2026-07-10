@@ -1,16 +1,14 @@
 /**
- * Spotify Web API client for Phase 4 harmonic matching.
+ * Spotify Web API client for harmonic matching.
  *
- * Client Credentials (no user login) — covers: track search, audio-features.
- * User Bearer token — additionally covers: /me/player/currently-playing.
- *
- * Required env vars (add to .env and app.config.js):
- *   EXPO_PUBLIC_SPOTIFY_CLIENT_ID
- *   EXPO_PUBLIC_SPOTIFY_CLIENT_SECRET
+ * Closed-loop build: NO client secret is bundled on-device. Every Web API call
+ * uses the user Bearer token obtained via PKCE OAuth (PKCE needs only the public
+ * client ID). Search, audio-features, and currently-playing all run off that
+ * single user token. When no token is present, every call is a safe no-op and
+ * the audio engine continues on its mode's default carrier.
  */
 
-const ACCOUNTS = 'https://accounts.spotify.com';
-const API      = 'https://api.spotify.com/v1';
+const API = 'https://api.spotify.com/v1';
 
 // ── Public types ─────────────────────────────────────────────────────────────
 
@@ -37,38 +35,6 @@ export type CurrentlyPlaying = {
   isPlaying: boolean;
   progressMs: number;
 };
-
-// ── Client Credentials token cache (never expires within a session) ───────────
-
-const CC_CLIENT_ID     = process.env.EXPO_PUBLIC_SPOTIFY_CLIENT_ID     ?? '';
-const CC_CLIENT_SECRET = process.env.EXPO_PUBLIC_SPOTIFY_CLIENT_SECRET ?? '';
-
-let ccToken  = '';
-let ccExpiry = 0;
-
-async function clientCredentialsToken(): Promise<string | null> {
-  if (!CC_CLIENT_ID || !CC_CLIENT_SECRET) return null;
-  if (ccToken && Date.now() < ccExpiry) return ccToken;
-
-  try {
-    const credentials = btoa(`${CC_CLIENT_ID}:${CC_CLIENT_SECRET}`);
-    const res = await fetch(`${ACCOUNTS}/api/token`, {
-      method: 'POST',
-      headers: {
-        'Content-Type':  'application/x-www-form-urlencoded',
-        'Authorization': `Basic ${credentials}`,
-      },
-      body: 'grant_type=client_credentials',
-    });
-    if (!res.ok) return null;
-    const data = (await res.json()) as { access_token: string; expires_in: number };
-    ccToken  = data.access_token;
-    ccExpiry = Date.now() + (data.expires_in - 60) * 1000; // 60s safety margin
-    return ccToken;
-  } catch {
-    return null;
-  }
-}
 
 // ── User Bearer token (set after PKCE OAuth completes) ───────────────────────
 
@@ -112,17 +78,16 @@ async function spotifyGet<T>(path: string, token: string): Promise<T | null> {
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /**
- * Search for a track. Uses Client Credentials — no user login required.
- * Returns the top result or null if nothing matches / credentials not set.
+ * Search for a track using the user Bearer token.
+ * Returns the top result, or null if there is no token / nothing matches.
  */
 export async function searchTrack(title: string, artist: string): Promise<SpotifyTrack | null> {
-  const token = await clientCredentialsToken();
-  if (!token) return null;
+  if (!userToken) return null;
 
   const q = encodeURIComponent(`track:${title} artist:${artist}`);
   const data = await spotifyGet<{ tracks: { items: RawTrack[] } }>(
     `/search?q=${q}&type=track&limit=1`,
-    token,
+    userToken,
   );
   const item = data?.tracks?.items?.[0];
   if (!item) return null;
@@ -130,14 +95,13 @@ export async function searchTrack(title: string, artist: string): Promise<Spotif
 }
 
 /**
- * Fetch audio features (key, mode, tempo, energy, valence) for a known track ID.
- * Uses Client Credentials — no user login required.
+ * Fetch audio features (key, mode, tempo, energy, valence) for a known track ID
+ * using the user Bearer token. Returns null when there is no token.
  */
 export async function getAudioFeatures(trackId: string): Promise<AudioFeatures | null> {
-  const token = await clientCredentialsToken();
-  if (!token) return null;
+  if (!userToken) return null;
 
-  const data = await spotifyGet<RawAudioFeatures>(`/audio-features/${trackId}`, token);
+  const data = await spotifyGet<RawAudioFeatures>(`/audio-features/${trackId}`, userToken);
   if (!data) return null;
   return {
     key:     data.key,

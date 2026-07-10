@@ -2,6 +2,11 @@
   "name": "dialed",
   "version": "1.0.0",
   "main": "expo-router/entry",
+  "expo": {
+    "autolinking": {
+      "nativeModulesDir": "./modules"
+    }
+  },
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
@@ -14,8 +19,6 @@
     "@expo/vector-icons": "^15.1.1",
     "@react-navigation/native": "^7.2.4",
     "@react-navigation/native-stack": "^7.15.1",
-    "dialed-audio": "file:./modules/dialed-audio",
-    "dialed-watch": "file:./modules/dialed-watch",
     "expo": "~54.0.33",
     "expo-blur": "~15.0.8",
     "expo-constants": "~18.0.13",
