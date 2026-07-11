@@ -63,15 +63,15 @@ export const STAT_BOXES = [
     accentColor: '#5eead4',
   },
   {
-    value: '<3s',
-    label: 'Key Match',
-    detail: 'Spotify harmonic recalibration',
+    value: '100%',
+    label: 'Closed Loop',
+    detail: 'proprietary on-device oscillators',
     accentColor: '#fb923c',
   },
   {
     value: '24/7',
     label: 'Parallel Audio',
-    detail: 'mixes with Spotify · no ducking',
+    detail: 'mixes under any app · no ducking',
     accentColor: '#f472b6',
   },
 ] as const;

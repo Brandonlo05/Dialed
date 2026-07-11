@@ -1,15 +1,18 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useState } from 'react';
-import { Linking, Pressable, ScrollView, Switch, Text, View } from 'react-native';
+import { router } from 'expo-router';
+import { useState } from 'react';
+import { Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { setPollerEnabled } from '../../src/services/musicPoller';
+import { NEON } from '../../src/constants/theme';
+import { setBrownNoiseEnabled } from '../../src/services/audioEngine';
+import { tapSelect } from '../../src/services/haptics';
 import {
-  handleSpotifyCallback,
-  initiateSpotifyAuth,
-  SPOTIFY_CALLBACK_SCHEME,
-} from '../../src/services/spotifyAuth';
-import { clearUserToken, hasUserToken } from '../../src/services/spotifyClient';
+  COGNITIVE_LABELS,
+  ENVIRONMENT_LABELS,
+  GOAL_LABELS,
+  getCachedProfile,
+} from '../../src/services/userProfile';
 
 // ── Reusable toggle row ───────────────────────────────────────────────────────
 
@@ -53,43 +56,15 @@ function SettingRow({
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 export default function SettingsScreen() {
-  const [brownNoise,     setBrownNoise]     = useState(true);
-  const [parallelAudio,  setParallelAudio]  = useState(true);
-  const [harmonicMatch,  setHarmonicMatch_] = useState(true);
-  const [watchSync,      setWatchSync]      = useState(false);
-  const [spotifyLinked,  setSpotifyLinked]  = useState(hasUserToken());
-  const [authPending,    setAuthPending]    = useState(false);
+  const profile = getCachedProfile();
+  const [brownNoise, setBrownNoise] = useState(true);
+  const [watchSync,  setWatchSync]  = useState(false);
 
-  // ── Wire harmonic toggle to the live poller ───────────────────────────────
-
-  function setHarmonicMatch(v: boolean) {
-    setHarmonicMatch_(v);
-    setPollerEnabled(v);
-  }
-
-  // ── Spotify OAuth deep-link listener ─────────────────────────────────────
-
-  useEffect(() => {
-    const sub = Linking.addEventListener('url', async ({ url }) => {
-      if (!url.startsWith(SPOTIFY_CALLBACK_SCHEME)) return;
-      const ok = await handleSpotifyCallback(url);
-      setSpotifyLinked(ok);
-      setAuthPending(false);
-    });
-    return () => sub.remove();
-  }, []);
-
-  async function connectSpotify() {
-    setAuthPending(true);
-    await initiateSpotifyAuth();
-    // setAuthPending(false) is called in the Linking listener above
-  }
-
-  function disconnectSpotify() {
-    clearUserToken();
-    setSpotifyLinked(false);
-    setPollerEnabled(false);
-    setHarmonicMatch_(false);
+  // Brown-noise toggle drives the live engine (no-op when no session running)
+  function toggleBrownNoise(v: boolean) {
+    tapSelect();
+    setBrownNoise(v);
+    void setBrownNoiseEnabled(v);
   }
 
   return (
@@ -109,77 +84,59 @@ export default function SettingsScreen() {
           </Text>
         </View>
 
-        {/* ── Spotify Connect ───────────────────────────────────────────────── */}
+        {/* ── Cognitive calibration ─────────────────────────────────────────── */}
         <Text className="mb-2 text-[10px] font-bold uppercase tracking-[2px] text-dialed-muted">
-          Harmonic Intelligence
+          Cognitive Calibration
         </Text>
 
         <View
           className="mb-3 overflow-hidden rounded-2xl"
-          style={{ borderWidth: 1, borderColor: spotifyLinked ? 'rgba(94,234,212,0.25)' : 'rgba(255,255,255,0.09)' }}
+          style={{ borderWidth: 1, borderColor: `${NEON.violet}35` }}
         >
           <LinearGradient
-            colors={
-              spotifyLinked
-                ? ['rgba(94,234,212,0.1)', 'rgba(10,10,16,0.97)']
-                : ['rgba(255,255,255,0.055)', 'rgba(255,255,255,0.025)']
-            }
+            colors={[`${NEON.violet}12`, 'rgba(5,5,8,0.97)']}
             className="p-4"
           >
-            <View className="flex-row items-center" style={{ gap: 10 }}>
-              {/* Spotify logo stand-in */}
-              <View
-                className="h-9 w-9 items-center justify-center rounded-full"
-                style={{
-                  backgroundColor: spotifyLinked ? 'rgba(30,215,96,0.2)' : 'rgba(255,255,255,0.08)',
-                }}
-              >
-                <Text allowFontScaling={false} style={{ fontSize: 16 }}>
-                  {spotifyLinked ? '✓' : '♫'}
-                </Text>
+            {profile ? (
+              <View style={{ gap: 8 }}>
+                <View className="flex-row justify-between">
+                  <Text className="text-xs text-dialed-muted">Brain profile</Text>
+                  <Text className="text-xs font-semibold text-dialed-stat">
+                    {COGNITIVE_LABELS[profile.cognitive]}
+                  </Text>
+                </View>
+                <View className="flex-row justify-between">
+                  <Text className="text-xs text-dialed-muted">Environment</Text>
+                  <Text className="text-xs font-semibold text-dialed-stat">
+                    {ENVIRONMENT_LABELS[profile.environment]}
+                  </Text>
+                </View>
+                <View className="flex-row justify-between">
+                  <Text className="text-xs text-dialed-muted">Objective</Text>
+                  <Text className="text-xs font-semibold text-dialed-stat">
+                    {GOAL_LABELS[profile.goal]}
+                  </Text>
+                </View>
               </View>
+            ) : (
+              <Text className="text-xs text-dialed-muted">No calibration profile yet.</Text>
+            )}
 
-              <View className="flex-1">
-                <Text className="font-semibold text-dialed-stat">
-                  {spotifyLinked ? 'Spotify Connected' : 'Connect Spotify'}
-                </Text>
-                <Text className="mt-0.5 text-xs leading-[16px] text-dialed-muted">
-                  {spotifyLinked
-                    ? 'Harmonic matching active — key detected within 3s'
-                    : 'Required for live key detection and carrier recalibration'}
-                </Text>
-              </View>
-
-              <Pressable
-                onPress={spotifyLinked ? disconnectSpotify : connectSpotify}
-                className="rounded-xl px-3 py-2"
-                style={{
-                  backgroundColor: spotifyLinked
-                    ? 'rgba(255,80,80,0.15)'
-                    : 'rgba(124,92,255,0.25)',
-                  borderWidth: 1,
-                  borderColor: spotifyLinked
-                    ? 'rgba(255,80,80,0.3)'
-                    : 'rgba(124,92,255,0.45)',
-                }}
-              >
-                <Text
-                  className="text-xs font-bold"
-                  style={{ color: spotifyLinked ? '#f87171' : '#a78bfa' }}
-                >
-                  {authPending ? 'Waiting…' : spotifyLinked ? 'Unlink' : 'Connect'}
-                </Text>
-              </Pressable>
-            </View>
+            <Pressable
+              onPress={() => router.push('/onboarding')}
+              className="mt-4 items-center rounded-xl py-2.5"
+              style={{
+                backgroundColor: `${NEON.violet}1F`,
+                borderWidth: 1,
+                borderColor: `${NEON.violet}55`,
+              }}
+            >
+              <Text className="text-xs font-bold uppercase tracking-[1.5px]" style={{ color: NEON.violetSoft }}>
+                Recalibrate Engine
+              </Text>
+            </Pressable>
           </LinearGradient>
         </View>
-
-        <SettingRow
-          title="Spotify Harmonic Match"
-          description="Recalibrate carrier tones to current song key within 3 seconds"
-          value={harmonicMatch}
-          onChange={setHarmonicMatch}
-        />
 
         {/* ── Audio Engine ─────────────────────────────────────────────────── */}
         <Text className="mb-2 mt-4 text-[10px] font-bold uppercase tracking-[2px] text-dialed-muted">
@@ -187,29 +144,18 @@ export default function SettingsScreen() {
         </Text>
         <SettingRow
           title="ADHD Brownian Noise"
-          description="Broadband noise layer underneath binaural tones for attention anchoring"
+          description="Broadband noise layer underneath binaural tones — applies live to the running engine"
           value={brownNoise}
-          onChange={setBrownNoise}
+          onChange={toggleBrownNoise}
         />
-        <SettingRow
-          title="Parallel Audio"
-          description="Mixes entrainment with Spotify without ducking or interruption"
-          value={parallelAudio}
-          onChange={setParallelAudio}
-        />
-
-        {/* ── Phase 3 ──────────────────────────────────────────────────────── */}
-        <Text className="mb-2 mt-4 text-[10px] font-bold uppercase tracking-[2px] text-dialed-muted">
-          Biometrics
-        </Text>
         <SettingRow
           title="Apple Watch Sync"
-          description="Adaptive mode switching based on HRV and biometric data (Phase 3)"
+          description="Adaptive mode switching based on HRV and biometric data (coming online)"
           value={watchSync}
-          onChange={setWatchSync}
+          onChange={(v) => { tapSelect(); setWatchSync(v); }}
         />
 
-        {/* ── Build note ───────────────────────────────────────────────────── */}
+        {/* ── Closed-loop note ─────────────────────────────────────────────── */}
         <View
           className="mt-6 overflow-hidden rounded-2xl"
           style={{ borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)' }}
@@ -219,18 +165,12 @@ export default function SettingsScreen() {
             className="p-4"
           >
             <Text className="mb-1.5 text-[10px] font-bold uppercase tracking-[2px] text-dialed-muted">
-              Setup
+              Closed-Loop Audio
             </Text>
             <Text className="text-xs leading-[18px] text-dialed-muted">
-              Add your Spotify app credentials to{' '}
-              <Text className="font-mono text-dialed-stat">.env</Text>:{'\n'}
-              <Text className="font-mono text-dialed-stat">EXPO_PUBLIC_SPOTIFY_CLIENT_ID</Text>
-              {'\n'}
-              <Text className="font-mono text-dialed-stat">EXPO_PUBLIC_SPOTIFY_CLIENT_SECRET</Text>
-              {'\n\n'}
-              Register{' '}
-              <Text className="font-mono text-dialed-stat">dialed://spotify-callback</Text>
-              {' '}as a Redirect URI in your{'\n'}Spotify Developer Dashboard.
+              Dialed runs entirely on its own proprietary oscillators — binaural carriers and
+              Brownian noise are synthesized natively on-device. Parallel audio stays active:
+              entrainment mixes underneath anything else you play, without ducking.
             </Text>
           </LinearGradient>
         </View>

@@ -1,6 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Tabs } from 'expo-router';
+import { Redirect, Tabs } from 'expo-router';
 import type { ComponentProps } from 'react';
+import { useEffect, useState } from 'react';
+import { View } from 'react-native';
+
+import { loadUserProfile } from '../../src/services/userProfile';
 
 type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -9,12 +13,26 @@ function TabIcon({ name, color, size }: { name: IoniconName; color: string; size
 }
 
 export default function TabsLayout() {
+  // Onboarding gate — until calibration exists, the app routes to /onboarding.
+  const [status, setStatus] = useState<'loading' | 'calibrated' | 'new'>('loading');
+
+  useEffect(() => {
+    loadUserProfile().then((profile) => setStatus(profile ? 'calibrated' : 'new'));
+  }, []);
+
+  if (status === 'loading') {
+    return <View style={{ flex: 1, backgroundColor: '#000000' }} />;
+  }
+  if (status === 'new') {
+    return <Redirect href="/onboarding" />;
+  }
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: '#07070f',
+          backgroundColor: '#000000',
           borderTopColor: 'rgba(255,255,255,0.06)',
           borderTopWidth: 1,
           height: 82,

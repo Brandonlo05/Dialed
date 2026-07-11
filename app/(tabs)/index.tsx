@@ -1,79 +1,87 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { FocusRing } from '../../src/components/FocusRing';
 import { GlassCard } from '../../src/components/GlassCard';
+import { SessionSummary } from '../../src/components/SessionSummary';
 import { StatBox } from '../../src/components/StatBox';
 import { FOCUS_MODES, STAT_BOXES, type FocusModeId } from '../../src/constants/modes';
-import { startAudioSession, stopAudioSession } from '../../src/services/audioEngine';
-import type { MatchResult } from '../../src/services/harmonicMatcher';
 import {
-  startMusicPoller,
-  stopMusicPoller,
-  updatePollerBaseCarrier,
-} from '../../src/services/musicPoller';
-import { hasUserToken } from '../../src/services/spotifyClient';
+  setVolume,
+  startAudioSession,
+  stopAudioSession,
+} from '../../src/services/audioEngine';
+import { recordSession, type SessionSummaryData } from '../../src/services/gamification';
+import { tapConfirm } from '../../src/services/haptics';
+import { calibrate, getCachedProfile, recommendedModeId } from '../../src/services/userProfile';
 
 export default function DashboardScreen() {
-  const [activeMode, setActiveMode]   = useState<FocusModeId | null>(null);
-  const [isPlaying, setIsPlaying]     = useState(false);
-  const [matchResult, setMatchResult] = useState<MatchResult | null>(null);
-  const [detecting, setDetecting]     = useState(false);
+  const [activeMode, setActiveMode] = useState<FocusModeId | null>(null);
+  const [isPlaying, setIsPlaying]   = useState(false);
+  const [elapsedSec, setElapsedSec] = useState(0);
+  const [summary, setSummary]       = useState<SessionSummaryData | null>(null);
 
+  const sessionStartRef = useRef<number | null>(null);
+
+  const profile = getCachedProfile();
+  const recommendedId = profile ? recommendedModeId(profile.goal) : null;
   const activeModeData = FOCUS_MODES.find((m) => m.id === activeMode);
+  const activeCalibration = activeModeData ? calibrate(activeModeData, profile) : null;
+
+  // ── Session clock (wall-clock based — immune to JS timer drift) ────────────
+  useEffect(() => {
+    if (!isPlaying) return;
+    const interval = setInterval(() => {
+      if (sessionStartRef.current !== null) {
+        setElapsedSec(Math.floor((Date.now() - sessionStartRef.current) / 1000));
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isPlaying]);
 
   const toggleMode = useCallback(
     async (modeId: FocusModeId) => {
       const mode = FOCUS_MODES.find((m) => m.id === modeId);
       if (!mode) return;
 
-      // ── Stop current session ──────────────────────────────────────────────
+      // ── Stop current session → record XP + show reward card ───────────────
       if (activeMode === modeId && isPlaying) {
         await stopAudioSession();
-        stopMusicPoller();
+        const startedAt = sessionStartRef.current;
+        sessionStartRef.current = null;
         setIsPlaying(false);
         setActiveMode(null);
-        setMatchResult(null);
-        setDetecting(false);
+        setElapsedSec(0);
+
+        const minutes = startedAt ? (Date.now() - startedAt) / 60_000 : 0;
+        if (minutes >= 1) {
+          setSummary(await recordSession(minutes, profile?.goal ?? null));
+        }
         return;
       }
 
-      // ── Start new session ─────────────────────────────────────────────────
+      // ── Start (or hot-swap) a session with calibrated parameters ──────────
+      tapConfirm();
+      const cal = calibrate(mode, profile);
       setActiveMode(modeId);
-      setMatchResult(null);
-      setDetecting(hasUserToken());
 
       await startAudioSession({
-        carrierHz:          mode.carrierHz,
-        beatHz:             mode.beatHz,
-        brownNoiseEnabled:  modeId === 'standard-focus',
+        carrierHz:         cal.carrierHz,
+        beatHz:            cal.beatHz,
+        brownNoiseEnabled: cal.brownNoise,
       });
+      void setVolume(cal.volume);
 
-      if (hasUserToken()) {
-        startMusicPoller({
-          baseCarrierHz: mode.carrierHz,
-          onRecalibrate: (result) => {
-            setMatchResult(result);
-            setDetecting(false);
-          },
-        });
+      // Hot-swapping modes keeps the clock running; a fresh start resets it
+      if (!isPlaying) {
+        sessionStartRef.current = Date.now();
+        setElapsedSec(0);
       }
-
       setIsPlaying(true);
     },
-    [activeMode, isPlaying],
+    [activeMode, isPlaying, profile],
   );
-
-  // If the user connects Spotify in Settings then switches back, re-start poller
-  useEffect(() => {
-    if (isPlaying && activeModeData && hasUserToken() && !matchResult) {
-      updatePollerBaseCarrier(activeModeData.carrierHz);
-      setDetecting(true);
-    }
-  }, [isPlaying, activeModeData, matchResult]);
-
-  // Clean up on unmount (tab switch)
-  useEffect(() => () => { stopMusicPoller(); }, []);
 
   return (
     <SafeAreaView className="flex-1 bg-dialed-bg" edges={['top']}>
@@ -83,7 +91,7 @@ export default function DashboardScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* ── Header ──────────────────────────────────────────────────────── */}
-        <View className="mb-8 mt-4">
+        <View className="mb-6 mt-4">
           <Text className="text-[11px] font-semibold uppercase tracking-[4px] text-dialed-muted">
             Binaural Focus
           </Text>
@@ -100,46 +108,20 @@ export default function DashboardScreen() {
               }}
             />
             <Text className="text-xs text-dialed-muted">
-              {isPlaying && activeModeData
-                ? `${activeModeData.title} · ${activeModeData.beatHz} Hz · Active`
+              {isPlaying && activeModeData && activeCalibration
+                ? `${activeModeData.title} · ${Math.round(activeCalibration.carrierHz)} Hz carrier · ${activeCalibration.beatHz} Hz beat`
                 : 'Select a mode to begin entrainment'}
             </Text>
           </View>
-
-          {/* Harmonic match badge — shown once a key is confirmed */}
-          {isPlaying && matchResult && (
-            <View
-              className="mt-2 self-start flex-row items-center rounded-full px-3 py-1"
-              style={{
-                backgroundColor: 'rgba(124,92,255,0.14)',
-                borderWidth:     1,
-                borderColor:     'rgba(124,92,255,0.35)',
-                gap:             6,
-              }}
-            >
-              <View
-                className="h-1.5 w-1.5 rounded-full"
-                style={{ backgroundColor: '#a78bfa' }}
-              />
-              <Text className="text-[11px] font-semibold" style={{ color: '#a78bfa' }}>
-                {matchResult.keyLabel}
-              </Text>
-              <Text className="text-[11px] text-dialed-muted">
-                {Math.round(matchResult.carrierHz)} Hz · {matchResult.camelotKey} · {matchResult.tempo} BPM
-              </Text>
-            </View>
-          )}
-
-          {/* Detecting state — shown while waiting for first poll result */}
-          {isPlaying && detecting && !matchResult && (
-            <View className="mt-2 flex-row items-center" style={{ gap: 5 }}>
-              <Text className="text-[11px] text-dialed-muted">◌  Detecting key…</Text>
-            </View>
-          )}
         </View>
 
+        {/* ── Live focus ring ─────────────────────────────────────────────── */}
+        {isPlaying && activeCalibration && (
+          <FocusRing elapsedSec={elapsedSec} beatHz={activeCalibration.beatHz} />
+        )}
+
         {/* ── Mode Cards ───────────────────────────────────────────────────── */}
-        <Text className="mb-3 text-[11px] font-semibold uppercase tracking-[3px] text-dialed-muted">
+        <Text className="mb-3 mt-2 text-[11px] font-semibold uppercase tracking-[3px] text-dialed-muted">
           Entrainment Modes
         </Text>
         {FOCUS_MODES.map((mode) => (
@@ -150,6 +132,7 @@ export default function DashboardScreen() {
             accent={mode.accent}
             icon={mode.icon}
             selected={activeMode === mode.id}
+            badge={mode.id === recommendedId ? 'Calibrated' : undefined}
             onPress={() => toggleMode(mode.id)}
           />
         ))}
@@ -171,6 +154,9 @@ export default function DashboardScreen() {
           ))}
         </View>
       </ScrollView>
+
+      {/* ── Micro-reward splash ─────────────────────────────────────────────── */}
+      <SessionSummary summary={summary} onClose={() => setSummary(null)} />
     </SafeAreaView>
   );
 }

@@ -11,9 +11,9 @@ Always read before implementing:
 
 - Expo SDK 54, TypeScript, NativeWind v4 (dark-first UI)
 - Custom dev client + EAS (`eas.json`) for native Swift modules
-- Native audio: `modules/dialed-audio` (iOS `AVAudioEngine`)
-- watchOS companion: `ios/DialedWatch` (scaffold)
-- Harmonic matcher: `src/services/harmonicMatcher.ts`
+- Native audio: `modules/dialed-audio` (iOS `AVAudioEngine`) — 100% closed-loop, no external music APIs
+- watchOS companion: `ios-templates/DialedWatch` (scaffold)
+- Calibration & gamification: `src/services/userProfile.ts`, `src/services/gamification.ts`
 
 ## Commands
 

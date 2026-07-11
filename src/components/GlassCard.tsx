@@ -13,12 +13,14 @@ type GlassCardProps = {
   accent: string;
   icon: string;
   selected?: boolean;
+  /** Small neon pill next to the title (e.g. "Calibrated"). */
+  badge?: string;
   onPress?: () => void;
 };
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-export function GlassCard({ title, subtitle, accent, icon, selected, onPress }: GlassCardProps) {
+export function GlassCard({ title, subtitle, accent, icon, selected, badge, onPress }: GlassCardProps) {
   const scale = useSharedValue(1);
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -69,6 +71,23 @@ export function GlassCard({ title, subtitle, accent, icon, selected, onPress }: 
                   <Text className="text-[17px] font-bold tracking-tight text-dialed-stat">
                     {title}
                   </Text>
+                  {badge && (
+                    <View
+                      className="rounded-full px-2 py-0.5"
+                      style={{
+                        backgroundColor: `${accent}1F`,
+                        borderWidth: 1,
+                        borderColor: `${accent}50`,
+                      }}
+                    >
+                      <Text
+                        className="text-[8px] font-bold uppercase tracking-[1.5px]"
+                        style={{ color: accent }}
+                      >
+                        {badge}
+                      </Text>
+                    </View>
+                  )}
                 </View>
                 <Text className="text-xs leading-[18px] text-dialed-muted">{subtitle}</Text>
               </View>
