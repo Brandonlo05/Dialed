@@ -23,7 +23,12 @@ import {
 } from '../../src/services/audioPresets';
 import { recordSession, type SessionSummaryData } from '../../src/services/gamification';
 import { celebrate, engagePreset, tapConfirm, tapSelect } from '../../src/services/haptics';
-import { calibrate, getCachedProfile, recommendedModeId } from '../../src/services/userProfile';
+import {
+  calibrate,
+  consumePendingRecommendation,
+  getCachedProfile,
+  recommendedModeId,
+} from '../../src/services/userProfile';
 
 function formatCountdown(sec: number): string {
   const m = Math.floor(sec / 60);
@@ -83,6 +88,15 @@ export default function DashboardScreen() {
 
   // Clear the sweep clock if the dashboard ever unmounts mid-session
   useEffect(() => () => { stopNeuroPreset(); }, []);
+
+  // Fresh from the Neural Diagnostic: pop the recommended program's
+  // Command Sheet once the dashboard has settled.
+  useEffect(() => {
+    const recommended = consumePendingRecommendation();
+    if (!recommended) return;
+    const timer = setTimeout(() => setSheetProgram(recommended), 500);
+    return () => clearTimeout(timer);
+  }, []);
 
   // ── Session starters (fired by the Command Sheet's ENGAGE button) ─────────
   const startMode = useCallback(

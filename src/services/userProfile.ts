@@ -14,7 +14,9 @@
  * depth + brown-noise floor.
  */
 
+import type { Bottleneck, DiagnosticAnswers } from '../constants/diagnostic';
 import type { FocusMode, FocusModeId } from '../constants/modes';
+import type { ProgramId } from '../constants/presetUx';
 import { loadJson, saveJson } from './storage';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -27,6 +29,8 @@ export type UserProfile = {
   cognitive: CognitiveProfile;
   environment: Environment;
   goal: SessionGoal;
+  /** Raw answers from the Neural Diagnostic onboarding (absent on legacy profiles). */
+  diagnostic?: DiagnosticAnswers;
   /** ISO timestamp of when calibration was completed. */
   calibratedAt: string;
 };
@@ -131,6 +135,72 @@ export function calibrate(mode: FocusMode, profile: UserProfile | null): AudioCa
   }
 
   return { carrierHz, beatHz, volume, brownNoise, asymmetricSMR, smrHz, smrDepth };
+}
+
+// ── Neural Diagnostic → calibration derivation ──────────────────────────────
+
+/**
+ * Map the 4-question diagnostic onto the calibration fields the audio
+ * engine's calibrate() consumes. Deterministic, documented heuristics:
+ * - cognitive: bottleneck is primary signal, stress response breaks ties
+ * - environment: inferred from arena (adjustable via Recalibrate later)
+ * - goal: follows the bottleneck's remedy direction
+ */
+export function deriveCalibrationFromDiagnostic(
+  d: DiagnosticAnswers,
+): Pick<UserProfile, 'cognitive' | 'environment' | 'goal'> {
+  let cognitive: CognitiveProfile;
+  switch (d.bottleneck) {
+    case 'high-pressure-anxiety':
+      cognitive = 'anxiety';
+      break;
+    case 'total-burnout':
+      cognitive = 'fatigue';
+      break;
+    case 'sluggish':
+      cognitive = d.stressResponse === 'anxious-restless' ? 'adhd' : 'fatigue';
+      break;
+    case 'mid-day-fog':
+      cognitive = d.stressResponse === 'sluggish-paralyzed' ? 'fatigue' : 'neurotypical';
+      break;
+  }
+
+  const environment: Environment =
+    d.arena === 'student' ? 'coffee-shop'
+    : d.arena === 'athlete-gamer' ? 'creative-chaos'
+    : 'office-hum';
+
+  const goal: SessionGoal =
+    d.bottleneck === 'sluggish' ? 'rapid-tasks'
+    : d.bottleneck === 'mid-day-fog' ? 'linear-execution'
+    : d.bottleneck === 'high-pressure-anxiety' ? 'creative-ideation'
+    : 'wind-down';
+
+  return { cognitive, environment, goal };
+}
+
+/** Classification router — the ideal program for the user's bottleneck. */
+export function recommendedProgramId(bottleneck: Bottleneck): ProgramId {
+  switch (bottleneck) {
+    case 'high-pressure-anxiety': return 'pre-exam';
+    case 'mid-day-fog':           return 'screen-fog';
+    case 'sluggish':              return 'caffeine-rush';
+    case 'total-burnout':         return 'burnout';
+  }
+}
+
+// One-shot recommendation handoff: onboarding sets it, the dashboard
+// consumes it once on mount and pops the program's Command Sheet.
+let pendingRecommendation: ProgramId | null = null;
+
+export function setPendingRecommendation(id: ProgramId): void {
+  pendingRecommendation = id;
+}
+
+export function consumePendingRecommendation(): ProgramId | null {
+  const id = pendingRecommendation;
+  pendingRecommendation = null;
+  return id;
 }
 
 /** Which mode card gets the "calibrated for you" badge on the dashboard. */

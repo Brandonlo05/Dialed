@@ -1,254 +1,328 @@
 /**
- * Hyper-customized onboarding — three intentional questions that calibrate
- * the native audio engine (see src/services/userProfile.ts for the mapping).
- * Also reachable from Settings → "Recalibrate" once a profile exists.
+ * Neural Diagnostic Onboarding — 4-step full-screen wizard.
+ *
+ * - Horizontal step-tracker: all four question cards live in one wide row;
+ *   a Reanimated spring on translateX glides between steps (UI thread).
+ * - Tapping an option fires a light haptic pop and auto-advances.
+ * - After Q4, a 2.5 s "Generating Profile" sequence runs (spinning
+ *   neon-gradient arc + cycling technical tickers) before landing on the
+ *   dashboard with the recommended program's Command Sheet popped open.
+ * - Fully skippable: Skip saves a neutral calibration (or just returns,
+ *   when re-running from Settings → Recalibrate).
+ *
+ * The diagnostic answers are also mapped onto the legacy calibration
+ * fields (cognitive/environment/goal) so the audio engine's calibrate()
+ * pipeline keeps working unchanged.
  */
 
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
-import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import { useEffect, useRef, useState } from 'react';
+import { Dimensions, Pressable, Text, View } from 'react-native';
+import Animated, {
+  Easing,
+  FadeIn,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Svg, { Circle, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
 
-import { NEON } from '../src/constants/theme';
-import { celebrate, tapConfirm, tapSelect } from '../src/services/haptics';
 import {
+  DIAGNOSTIC_QUESTIONS,
+  type DiagnosticAnswers,
+  type DiagnosticKey,
+} from '../src/constants/diagnostic';
+import { NEON } from '../src/constants/theme';
+import { celebrate, tick } from '../src/services/haptics';
+import {
+  deriveCalibrationFromDiagnostic,
   getCachedProfile,
+  recommendedProgramId,
   saveUserProfile,
-  type CognitiveProfile,
-  type Environment,
-  type SessionGoal,
+  setPendingRecommendation,
 } from '../src/services/userProfile';
 
-// ── Step definitions ─────────────────────────────────────────────────────────
+const { width: SCREEN_W } = Dimensions.get('window');
+const STEP_COUNT = DIAGNOSTIC_QUESTIONS.length;
 
-type StepKey = 'cognitive' | 'environment' | 'goal';
-
-type Option = { id: string; title: string; desc: string; icon: string };
-
-type Step = {
-  key: StepKey;
-  kicker: string;
-  question: string;
-  accent: string;
-  options: Option[];
-};
-
-const STEPS: Step[] = [
-  {
-    key: 'cognitive',
-    kicker: 'Cognitive Profile',
-    question: 'How does your brain naturally handle intense focus?',
-    accent: NEON.violet,
-    options: [
-      { id: 'neurotypical', title: 'Steady Baseline',   desc: 'Standard entrainment curve — no adjustments', icon: '◎' },
-      { id: 'adhd',         title: 'Hyper-Active',      desc: 'ADHD pattern — asymmetric left-ear SMR 12–15 Hz', icon: '⚡' },
-      { id: 'anxiety',      title: 'Prone to Anxiety',  desc: 'Soft carriers capped at 300 Hz + calming theta', icon: '〜' },
-      { id: 'fatigue',      title: 'Chronic Fatigue',   desc: 'Gentle alerting lift in the 10–14 Hz band', icon: '☾' },
-    ],
-  },
-  {
-    key: 'environment',
-    kicker: 'Environmental Chaos',
-    question: 'What does your current workspace sound like?',
-    accent: NEON.cyan,
-    options: [
-      { id: 'silent',         title: 'Dead Silent',         desc: 'Low-depth tones — nothing to mask', icon: '◦' },
-      { id: 'coffee-shop',    title: 'Coffee Shop Chatter', desc: 'Medium depth to sit above conversation', icon: '☕' },
-      { id: 'office-hum',     title: 'Office / Traffic Hum', desc: 'Deeper floor + brown-noise masking layer', icon: '≋' },
-      { id: 'creative-chaos', title: 'Creative Chaos',      desc: 'Full-depth immersion wall', icon: '✦' },
-    ],
-  },
-  {
-    key: 'goal',
-    kicker: 'The Goal Archive',
-    question: 'What is your primary objective for this session?',
-    accent: NEON.green,
-    options: [
-      { id: 'linear-execution',  title: 'Linear Coding / Writing',  desc: 'Sustained alpha attention bridge', icon: '⌨' },
-      { id: 'rapid-tasks',       title: 'Rapid Task Execution',     desc: 'Beta burst pacing for throughput', icon: '⚡' },
-      { id: 'creative-ideation', title: 'Deep Creative Ideation',   desc: 'Theta-alpha drift for divergence', icon: '◇' },
-      { id: 'wind-down',         title: 'Nervous System Wind Down', desc: 'Theta ceiling · soft volume floor', icon: '☾' },
-    ],
-  },
+const GENERATING_TICKERS = [
+  '◌ ANALYZING AUTONOMIC STRESS VECTOR...',
+  '◌ CALIBRATING ENTRAINMENT WAVEFORMS...',
+  '● PROFILE LOCKED. OPTIMIZING NEURAL PATHWAYS.',
 ];
+const TICKER_MS = 800;
+const GENERATING_MS = 2500;
 
-// ── Option card ──────────────────────────────────────────────────────────────
+// ── Generating Profile sequence ──────────────────────────────────────────────
 
-function OptionCard({
-  option,
-  accent,
-  selected,
-  index,
-  onPress,
-}: {
-  option: Option;
-  accent: string;
-  selected: boolean;
-  index: number;
-  onPress: () => void;
-}) {
+function GeneratingScreen() {
+  const [tickerIndex, setTickerIndex] = useState(0);
+  const spin = useSharedValue(0);
+
+  useEffect(() => {
+    spin.value = withRepeat(
+      withTiming(360, { duration: 1100, easing: Easing.linear }),
+      -1,
+    );
+    const interval = setInterval(() => {
+      setTickerIndex((i) => Math.min(i + 1, GENERATING_TICKERS.length - 1));
+    }, TICKER_MS);
+    return () => clearInterval(interval);
+  }, [spin]);
+
+  const spinStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${spin.value}deg` }],
+  }));
+
+  const locked = tickerIndex === GENERATING_TICKERS.length - 1;
+
   return (
-    <Animated.View entering={FadeInDown.delay(120 + index * 70).springify().damping(18)}>
-      <Pressable
-        onPress={onPress}
-        className="mb-3 overflow-hidden rounded-2xl"
-        style={{
-          borderWidth: 1,
-          borderColor: selected ? accent : 'rgba(255,255,255,0.09)',
-          shadowColor: selected ? accent : '#000',
-          shadowOpacity: selected ? 0.5 : 0,
-          shadowRadius: 20,
-          shadowOffset: { width: 0, height: 0 },
-          elevation: selected ? 12 : 0,
-        }}
+    <Animated.View entering={FadeIn.duration(300)} className="flex-1 items-center justify-center px-8">
+      <Animated.View style={spinStyle}>
+        <Svg width={120} height={120} viewBox="0 0 120 120">
+          <Defs>
+            <SvgLinearGradient id="neonArc" x1="0" y1="0" x2="1" y2="1">
+              <Stop offset="0" stopColor={NEON.violet} />
+              <Stop offset="0.55" stopColor={NEON.cyan} />
+              <Stop offset="1" stopColor={NEON.green} />
+            </SvgLinearGradient>
+          </Defs>
+          <Circle cx={60} cy={60} r={52} stroke="rgba(255,255,255,0.07)" strokeWidth={6} fill="none" />
+          <Circle
+            cx={60}
+            cy={60}
+            r={52}
+            stroke="url(#neonArc)"
+            strokeWidth={6}
+            fill="none"
+            strokeLinecap="round"
+            strokeDasharray="240 87"
+          />
+        </Svg>
+      </Animated.View>
+
+      <Text className="mt-10 text-center text-[17px] font-black tracking-tight text-dialed-stat">
+        Generating Neural Profile
+      </Text>
+      <Text
+        className="mt-4 text-center font-mono text-[11px] tracking-[0.5px]"
+        style={{ color: locked ? NEON.green : NEON.muted }}
       >
-        <LinearGradient
-          colors={
-            selected
-              ? [`${accent}30`, 'rgba(5,5,8,0.97)']
-              : ['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.02)']
-          }
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          className="flex-row items-center px-4 py-4"
-        >
-          <View
-            className="h-10 w-10 items-center justify-center rounded-xl"
-            style={{
-              backgroundColor: selected ? `${accent}28` : 'rgba(255,255,255,0.06)',
-              borderWidth: 1,
-              borderColor: selected ? `${accent}55` : 'rgba(255,255,255,0.08)',
-            }}
-          >
-            <Text allowFontScaling={false} style={{ fontSize: 17 }}>{option.icon}</Text>
-          </View>
-          <View className="ml-3 flex-1">
-            <Text className="text-[15px] font-bold text-dialed-stat">{option.title}</Text>
-            <Text className="mt-0.5 text-[11px] leading-4 text-dialed-muted">{option.desc}</Text>
-          </View>
-          <View
-            className="h-5 w-5 items-center justify-center rounded-full"
-            style={{
-              borderWidth: 1.5,
-              borderColor: selected ? accent : 'rgba(255,255,255,0.2)',
-              backgroundColor: selected ? accent : 'transparent',
-            }}
-          >
-            {selected && <Text style={{ color: '#000', fontSize: 11, fontWeight: '900' }}>✓</Text>}
-          </View>
-        </LinearGradient>
-      </Pressable>
+        {GENERATING_TICKERS[tickerIndex]}
+      </Text>
     </Animated.View>
   );
 }
 
-// ── Screen ───────────────────────────────────────────────────────────────────
+// ── Wizard ───────────────────────────────────────────────────────────────────
 
 export default function OnboardingScreen() {
   const isRecalibration = getCachedProfile() !== null;
+  const [phase, setPhase] = useState<'wizard' | 'generating'>('wizard');
   const [stepIndex, setStepIndex] = useState(0);
-  const [answers, setAnswers] = useState<Partial<Record<StepKey, string>>>({});
-  const [saving, setSaving] = useState(false);
+  const [answers, setAnswers] = useState<Partial<DiagnosticAnswers>>({});
 
-  const step = STEPS[stepIndex];
-  const selection = answers[step.key];
-  const isLast = stepIndex === STEPS.length - 1;
+  const trackX = useSharedValue(0);
+  const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const finalizeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  function selectOption(id: string) {
-    tapSelect();
-    setAnswers((prev) => ({ ...prev, [step.key]: id }));
+  useEffect(() => () => {
+    if (advanceTimer.current) clearTimeout(advanceTimer.current);
+    if (finalizeTimer.current) clearTimeout(finalizeTimer.current);
+  }, []);
+
+  const trackStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: trackX.value }],
+  }));
+
+  function goToStep(index: number) {
+    setStepIndex(index);
+    trackX.value = withSpring(-index * SCREEN_W, { damping: 21, stiffness: 160 });
   }
 
-  async function advance() {
-    if (!selection || saving) return;
-    tapConfirm();
+  function selectOption(key: DiagnosticKey, optionId: string) {
+    tick(); // light haptic pop (ImpactFeedbackStyle.Light)
+    const next = { ...answers, [key]: optionId } as Partial<DiagnosticAnswers>;
+    setAnswers(next);
 
-    if (!isLast) {
-      setStepIndex((i) => i + 1);
-      return;
-    }
+    // Brief beat so the selection state visibly registers, then glide on
+    if (advanceTimer.current) clearTimeout(advanceTimer.current);
+    advanceTimer.current = setTimeout(() => {
+      const isLast = stepIndex === STEP_COUNT - 1;
+      if (!isLast) {
+        goToStep(stepIndex + 1);
+      } else {
+        setPhase('generating');
+        finalizeTimer.current = setTimeout(() => {
+          void finalize(next as DiagnosticAnswers);
+        }, GENERATING_MS);
+      }
+    }, 280);
+  }
 
-    setSaving(true);
+  async function finalize(diagnostic: DiagnosticAnswers) {
+    const derived = deriveCalibrationFromDiagnostic(diagnostic);
     await saveUserProfile({
-      cognitive: answers.cognitive as CognitiveProfile,
-      environment: answers.environment as Environment,
-      goal: answers.goal as SessionGoal,
+      ...derived,
+      diagnostic,
       calibratedAt: new Date().toISOString(),
     });
+    setPendingRecommendation(recommendedProgramId(diagnostic.bottleneck));
     celebrate();
     router.replace('/(tabs)');
   }
 
+  async function skip() {
+    if (isRecalibration) {
+      router.back();
+      return;
+    }
+    // Neutral default so the tabs gate opens; user can recalibrate anytime
+    await saveUserProfile({
+      cognitive: 'neurotypical',
+      environment: 'office-hum',
+      goal: 'linear-execution',
+      calibratedAt: new Date().toISOString(),
+    });
+    router.replace('/(tabs)');
+  }
+
+  const accent = DIAGNOSTIC_QUESTIONS[stepIndex].accent;
+
   return (
-    <SafeAreaView className="flex-1" style={{ backgroundColor: NEON.bg }}>
-      <View className="flex-1 px-6">
-        {/* ── Progress + close ─────────────────────────────────────────────── */}
-        <View className="mb-8 mt-4 flex-row items-center justify-between">
-          <View className="flex-row" style={{ gap: 6 }}>
-            {STEPS.map((s, i) => (
+    <SafeAreaView className="flex-1" style={{ backgroundColor: '#000000' }}>
+      {phase === 'generating' ? (
+        <GeneratingScreen />
+      ) : (
+        <View className="flex-1">
+          {/* ── Progress header ──────────────────────────────────────────── */}
+          <View className="flex-row items-center justify-between px-6 pt-4">
+            <Text
+              className="font-mono text-[10px] font-bold tracking-[3px]"
+              style={{ color: accent }}
+            >
+              DIAGNOSTIC {stepIndex + 1} OF {STEP_COUNT}
+            </Text>
+            <Pressable onPress={() => { void skip(); }} hitSlop={12}>
+              <Text className="text-[11px] font-semibold uppercase tracking-[1.5px] text-dialed-muted">
+                Skip ✕
+              </Text>
+            </Pressable>
+          </View>
+          <View className="mt-3 flex-row px-6" style={{ gap: 6 }}>
+            {DIAGNOSTIC_QUESTIONS.map((q, i) => (
               <View
-                key={s.key}
-                className="h-1 rounded-full"
+                key={q.key}
+                className="h-1 flex-1 rounded-full"
                 style={{
-                  width: i === stepIndex ? 26 : 12,
-                  backgroundColor: i <= stepIndex ? step.accent : 'rgba(255,255,255,0.12)',
+                  backgroundColor: i <= stepIndex ? accent : 'rgba(255,255,255,0.1)',
                 }}
               />
             ))}
           </View>
-          {isRecalibration && (
-            <Pressable onPress={() => router.back()} hitSlop={12}>
-              <Text className="text-lg text-dialed-muted">✕</Text>
+
+          {/* ── Horizontal step tracker ──────────────────────────────────── */}
+          <Animated.View
+            className="flex-1 flex-row"
+            style={[{ width: SCREEN_W * STEP_COUNT }, trackStyle]}
+          >
+            {DIAGNOSTIC_QUESTIONS.map((q) => {
+              const selected = answers[q.key];
+              return (
+                <View key={q.key} style={{ width: SCREEN_W }} className="px-6 pt-8">
+                  <Text
+                    className="text-[10px] font-bold uppercase tracking-[4px]"
+                    style={{ color: q.accent }}
+                  >
+                    {q.kicker}
+                  </Text>
+                  <Text className="mb-7 mt-2 text-[25px] font-black leading-8 tracking-tight text-dialed-stat">
+                    {q.question}
+                  </Text>
+
+                  {q.options.map((option) => {
+                    const isSelected = selected === option.id;
+                    return (
+                      <Pressable
+                        key={option.id}
+                        onPress={() => selectOption(q.key, option.id)}
+                        className="mb-3 overflow-hidden rounded-2xl"
+                        style={{
+                          borderWidth: 1,
+                          borderColor: isSelected ? q.accent : 'rgba(255,255,255,0.09)',
+                          shadowColor: isSelected ? q.accent : '#000',
+                          shadowOpacity: isSelected ? 0.5 : 0,
+                          shadowRadius: 18,
+                          shadowOffset: { width: 0, height: 0 },
+                          elevation: isSelected ? 10 : 0,
+                        }}
+                      >
+                        <LinearGradient
+                          colors={
+                            isSelected
+                              ? [`${q.accent}30`, 'rgba(5,5,8,0.97)']
+                              : ['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.02)']
+                          }
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                          className="flex-row items-center px-4 py-4"
+                        >
+                          <View
+                            className="h-10 w-10 items-center justify-center rounded-xl"
+                            style={{
+                              backgroundColor: isSelected ? `${q.accent}28` : 'rgba(255,255,255,0.06)',
+                              borderWidth: 1,
+                              borderColor: isSelected ? `${q.accent}55` : 'rgba(255,255,255,0.08)',
+                            }}
+                          >
+                            <Text allowFontScaling={false} style={{ fontSize: 15, color: NEON.text }}>
+                              {option.icon}
+                            </Text>
+                          </View>
+                          <View className="ml-3 flex-1">
+                            <Text className="text-[15px] font-bold text-dialed-stat">{option.label}</Text>
+                            <Text className="mt-0.5 text-[11px] leading-4 text-dialed-muted">
+                              {option.desc}
+                            </Text>
+                          </View>
+                          <View
+                            className="h-5 w-5 items-center justify-center rounded-full"
+                            style={{
+                              borderWidth: 1.5,
+                              borderColor: isSelected ? q.accent : 'rgba(255,255,255,0.2)',
+                              backgroundColor: isSelected ? q.accent : 'transparent',
+                            }}
+                          >
+                            {isSelected && (
+                              <Text style={{ color: '#000', fontSize: 11, fontWeight: '900' }}>✓</Text>
+                            )}
+                          </View>
+                        </LinearGradient>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              );
+            })}
+          </Animated.View>
+
+          {/* ── Back affordance ──────────────────────────────────────────── */}
+          {stepIndex > 0 && (
+            <Pressable
+              onPress={() => goToStep(stepIndex - 1)}
+              className="mb-6 ml-6 self-start rounded-full px-4 py-2"
+              style={{ borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)' }}
+              hitSlop={8}
+            >
+              <Text className="text-[11px] font-semibold text-dialed-muted">← Back</Text>
             </Pressable>
           )}
         </View>
-
-        {/* ── Question (re-animates on step change via key) ────────────────── */}
-        <Animated.View key={step.key} entering={FadeInUp.springify().damping(18)} className="flex-1">
-          <Text
-            className="text-[10px] font-bold uppercase tracking-[4px]"
-            style={{ color: step.accent }}
-          >
-            {step.kicker} · {stepIndex + 1}/{STEPS.length}
-          </Text>
-          <Text className="mb-7 mt-2 text-[26px] font-black leading-8 tracking-tight text-dialed-stat">
-            {step.question}
-          </Text>
-
-          {step.options.map((option, i) => (
-            <OptionCard
-              key={option.id}
-              option={option}
-              accent={step.accent}
-              selected={selection === option.id}
-              index={i}
-              onPress={() => selectOption(option.id)}
-            />
-          ))}
-        </Animated.View>
-
-        {/* ── Continue ─────────────────────────────────────────────────────── */}
-        <Pressable
-          onPress={advance}
-          disabled={!selection || saving}
-          className="mb-4 items-center rounded-2xl py-4"
-          style={{
-            backgroundColor: selection ? `${step.accent}22` : 'rgba(255,255,255,0.04)',
-            borderWidth: 1,
-            borderColor: selection ? `${step.accent}60` : 'rgba(255,255,255,0.08)',
-            opacity: saving ? 0.6 : 1,
-          }}
-        >
-          <Text
-            className="text-sm font-bold uppercase tracking-[2px]"
-            style={{ color: selection ? step.accent : NEON.muted }}
-          >
-            {isLast ? 'Calibrate My Engine' : 'Continue'}
-          </Text>
-        </Pressable>
-      </View>
+      )}
     </SafeAreaView>
   );
 }
