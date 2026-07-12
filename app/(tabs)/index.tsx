@@ -2,11 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { CommandSheet, type SheetProgram } from '../../src/components/CommandSheet';
 import { FocusRing } from '../../src/components/FocusRing';
 import { GlassCard } from '../../src/components/GlassCard';
 import { SessionSummary } from '../../src/components/SessionSummary';
 import { StatBox } from '../../src/components/StatBox';
 import { FOCUS_MODES, STAT_BOXES, type FocusModeId } from '../../src/constants/modes';
+import { PRESET_UX_DATA, type ProgramId } from '../../src/constants/presetUx';
 import {
   setVolume,
   startAudioSession,
@@ -20,7 +22,7 @@ import {
   type NeuroPresetId,
 } from '../../src/services/audioPresets';
 import { recordSession, type SessionSummaryData } from '../../src/services/gamification';
-import { celebrate, engagePreset, tapConfirm } from '../../src/services/haptics';
+import { celebrate, engagePreset, tapConfirm, tapSelect } from '../../src/services/haptics';
 import { calibrate, getCachedProfile, recommendedModeId } from '../../src/services/userProfile';
 
 function formatCountdown(sec: number): string {
@@ -36,6 +38,7 @@ export default function DashboardScreen() {
   const [isPlaying, setIsPlaying]       = useState(false);
   const [elapsedSec, setElapsedSec]     = useState(0);
   const [summary, setSummary]           = useState<SessionSummaryData | null>(null);
+  const [sheetProgram, setSheetProgram] = useState<ProgramId | null>(null);
 
   const sessionStartRef = useRef<number | null>(null);
 
@@ -81,16 +84,11 @@ export default function DashboardScreen() {
   // Clear the sweep clock if the dashboard ever unmounts mid-session
   useEffect(() => () => { stopNeuroPreset(); }, []);
 
-  // ── Entrainment modes ──────────────────────────────────────────────────────
-  const toggleMode = useCallback(
+  // ── Session starters (fired by the Command Sheet's ENGAGE button) ─────────
+  const startMode = useCallback(
     async (modeId: FocusModeId) => {
       const mode = FOCUS_MODES.find((m) => m.id === modeId);
       if (!mode) return;
-
-      if (activeMode === modeId && isPlaying) {
-        await finishSession();
-        return;
-      }
 
       tapConfirm();
       stopNeuroPreset();
@@ -119,17 +117,11 @@ export default function DashboardScreen() {
       }
       setIsPlaying(true);
     },
-    [activeMode, isPlaying, profile, finishSession],
+    [isPlaying, profile],
   );
 
-  // ── Clinical neuro-presets ────────────────────────────────────────────────
-  const togglePreset = useCallback(
+  const startPreset = useCallback(
     async (presetId: NeuroPresetId) => {
-      if (activePreset === presetId && isPlaying) {
-        await finishSession();
-        return;
-      }
-
       engagePreset(); // distinct two-stage notification pattern
       setActiveMode(null);
       setActivePreset(presetId);
@@ -146,8 +138,68 @@ export default function DashboardScreen() {
       }
       setIsPlaying(true);
     },
+    [isPlaying],
+  );
+
+  // ── Card presses: active card stops; anything else opens the Command Sheet ─
+  const onModeCardPress = useCallback(
+    (modeId: FocusModeId) => {
+      if (activeMode === modeId && isPlaying) {
+        void finishSession();
+        return;
+      }
+      tapSelect();
+      setSheetProgram(modeId);
+    },
+    [activeMode, isPlaying, finishSession],
+  );
+
+  const onPresetCardPress = useCallback(
+    (presetId: NeuroPresetId) => {
+      if (activePreset === presetId && isPlaying) {
+        void finishSession();
+        return;
+      }
+      tapSelect();
+      setSheetProgram(presetId);
+    },
     [activePreset, isPlaying, finishSession],
   );
+
+  const engageFromSheet = useCallback(() => {
+    const id = sheetProgram;
+    setSheetProgram(null);
+    if (!id) return;
+    if (NEURO_PRESETS.some((p) => p.id === id)) {
+      void startPreset(id as NeuroPresetId);
+    } else {
+      void startMode(id as FocusModeId);
+    }
+  }, [sheetProgram, startMode, startPreset]);
+
+  // Sheet metadata for whichever program is being previewed
+  const sheetMeta: SheetProgram | null = (() => {
+    if (!sheetProgram) return null;
+    const preset = NEURO_PRESETS.find((p) => p.id === sheetProgram);
+    if (preset) {
+      return {
+        id: sheetProgram,
+        title: preset.title,
+        subtitle: preset.subtitle,
+        icon: preset.icon,
+        beatHz: preset.displayHz,
+      };
+    }
+    const mode = FOCUS_MODES.find((m) => m.id === sheetProgram);
+    if (!mode) return null;
+    return {
+      id: sheetProgram,
+      title: mode.title,
+      subtitle: mode.subtitle,
+      icon: mode.icon,
+      beatHz: PRESET_UX_DATA[sheetProgram].targetHz,
+    };
+  })();
 
   // ── Ring pulse rate: live sweep value for Burnout, fixed rate otherwise ───
   const ringHz = activePresetData
@@ -243,7 +295,7 @@ export default function DashboardScreen() {
             icon={preset.icon}
             selected={activePreset === preset.id}
             badge={preset.badge}
-            onPress={() => togglePreset(preset.id)}
+            onPress={() => onPresetCardPress(preset.id)}
           />
         ))}
 
@@ -260,7 +312,7 @@ export default function DashboardScreen() {
             icon={mode.icon}
             selected={activeMode === mode.id}
             badge={mode.id === recommendedId ? 'Calibrated' : undefined}
-            onPress={() => toggleMode(mode.id)}
+            onPress={() => onModeCardPress(mode.id)}
           />
         ))}
 
@@ -284,6 +336,13 @@ export default function DashboardScreen() {
 
       {/* ── Micro-reward splash ─────────────────────────────────────────────── */}
       <SessionSummary summary={summary} onClose={() => setSummary(null)} />
+
+      {/* ── Command Center bottom sheet ─────────────────────────────────────── */}
+      <CommandSheet
+        program={sheetMeta}
+        onEngage={engageFromSheet}
+        onClose={() => setSheetProgram(null)}
+      />
     </SafeAreaView>
   );
 }
