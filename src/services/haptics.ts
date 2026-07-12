@@ -15,6 +15,14 @@ export function tick(): void {
   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
 }
 
+/**
+ * Boundary notch — a firmer medium impact for crossing a marked threshold
+ * (e.g. the 70% hearing-safety line on the Engine Volume slider).
+ */
+export function notch(): void {
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+}
+
 /** Medium thump for confirming a step or starting a session. */
 export function tapConfirm(): void {
   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});

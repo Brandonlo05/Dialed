@@ -5,6 +5,7 @@ import { Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { NeuroLab } from '../../src/components/NeuroLab';
+import { VolumeSlider } from '../../src/components/VolumeSlider';
 import { NEON } from '../../src/constants/theme';
 import { setBrownNoiseEnabled } from '../../src/services/audioEngine';
 import { tapSelect } from '../../src/services/haptics';
@@ -143,6 +144,7 @@ export default function SettingsScreen() {
         <Text className="mb-2 mt-4 text-[10px] font-bold uppercase tracking-[2px] text-dialed-muted">
           Audio Engine
         </Text>
+        <VolumeSlider />
         <SettingRow
           title="ADHD Brownian Noise"
           description="Broadband noise layer underneath binaural tones — applies live to the running engine"

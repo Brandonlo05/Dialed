@@ -47,10 +47,21 @@ export async function setBeatFrequency(hz: number): Promise<void> {
   await DialedAudioModule.setBeatFrequency(hz);
 }
 
+// Last gain written to the engine — lets UI (e.g. the Engine Volume slider)
+// initialize from the true current level instead of guessing.
+let lastVolume = 0.25;
+
+/** The most recent 0–1 gain sent to the engine. */
+export function getLastVolume(): number {
+  return lastVolume;
+}
+
 /** level: 0.0 – 1.0 */
 export async function setVolume(level: number): Promise<void> {
+  const clamped = Math.max(0, Math.min(1, level));
+  lastVolume = clamped;
   if (Platform.OS !== 'ios') return;
-  await DialedAudioModule.setVolume(Math.max(0, Math.min(1, level)));
+  await DialedAudioModule.setVolume(clamped);
 }
 
 export async function setBrownNoiseEnabled(enabled: boolean): Promise<void> {
