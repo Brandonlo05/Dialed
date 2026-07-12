@@ -4,14 +4,14 @@
  * concrete audio-engine parameters (carrier Hz, beat Hz, volume,
  * brown-noise layer).
  *
- * The Swift engine is NOT modified: everything here maps onto the four
- * existing native params (`carrierHz`, `beatHz`, `volume`, `brownNoise`).
+ * Maps onto the native engine params: `carrierHz`, `beatHz`, `volume`,
+ * `brownNoise`, plus the Asymmetric Left-Ear SMR trio (`asymmetricSMR`,
+ * `smrHz`, `smrDepth`) — ADHD/Hyper-Active profiles lock the engine into
+ * left-ear SMR amplitude modulation with a clean right-channel carrier.
  *
- * Honest limitations (deferred until the engine grows new params):
- * - "Left-ear SMR emphasis" needs per-channel gain in AudioEngineManager;
- *   today we implement the SMR part (12–15 Hz beat band) only.
- * - "Cinematic drones / isochronic pacing layers" don't exist as assets
- *   yet; environment maps to master volume depth + brown-noise floor.
+ * Honest limitation (deferred): "cinematic drones / isochronic pacing
+ * layers" don't exist as assets yet; environment maps to master volume
+ * depth + brown-noise floor.
  */
 
 import type { FocusMode, FocusModeId } from '../constants/modes';
@@ -37,6 +37,12 @@ export type AudioCalibration = {
   /** 0–1 master amplitude, from environmental chaos depth. */
   volume: number;
   brownNoise: boolean;
+  /** Asymmetric Left-Ear SMR mode — engaged for ADHD/Hyper-Active profiles. */
+  asymmetricSMR: boolean;
+  /** SMR AM envelope rate (12–15 Hz band). */
+  smrHz: number;
+  /** AM depth 0–1. */
+  smrDepth: number;
 };
 
 // ── Persistence (with sync cache for the audio start path) ──────────────────
@@ -81,14 +87,23 @@ export function calibrate(mode: FocusMode, profile: UserProfile | null): AudioCa
   let beatHz = mode.beatHz;
   let volume = 0.25;
   let brownNoise = mode.id === 'standard-focus';
+  let asymmetricSMR = false;
+  let smrHz = 13.5;
+  const smrDepth = 0.85;
 
-  if (!profile) return { carrierHz, beatHz, volume, brownNoise };
+  if (!profile) {
+    return { carrierHz, beatHz, volume, brownNoise, asymmetricSMR, smrHz, smrDepth };
+  }
 
   // 1) Cognitive profile
   switch (profile.cognitive) {
     case 'adhd':
-      // SMR band stabilization — clamp beat into 12–15 Hz.
+      // Asymmetric Left-Ear SMR lock: the left channel is amplitude-modulated
+      // at the mode's rate clamped into the 12–15 Hz SMR band; the right
+      // channel renders a clean carrier (beatHz is bypassed natively).
       beatHz = clamp(beatHz, 12, 15);
+      asymmetricSMR = true;
+      smrHz = beatHz;
       break;
     case 'anxiety':
       // Soft carrier ceiling + calming theta-leaning modulation.
@@ -115,7 +130,7 @@ export function calibrate(mode: FocusMode, profile: UserProfile | null): AudioCa
     volume = Math.min(volume, 0.3);
   }
 
-  return { carrierHz, beatHz, volume, brownNoise };
+  return { carrierHz, beatHz, volume, brownNoise, asymmetricSMR, smrHz, smrDepth };
 }
 
 /** Which mode card gets the "calibrated for you" badge on the dashboard. */
@@ -132,7 +147,7 @@ export function recommendedModeId(goal: SessionGoal): FocusModeId {
 
 export const COGNITIVE_LABELS: Record<CognitiveProfile, string> = {
   neurotypical: 'Steady Baseline',
-  adhd:         'Hyper-Active · SMR 12–15 Hz',
+  adhd:         'Hyper-Active · L-ear SMR 12–15 Hz',
   anxiety:      'Anxiety-Aware · ≤300 Hz carriers',
   fatigue:      'Fatigue Lift · 10–14 Hz',
 };

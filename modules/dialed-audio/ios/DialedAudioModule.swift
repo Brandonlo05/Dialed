@@ -7,10 +7,33 @@ public class DialedAudioModule: Module {
     Name("DialedAudio")
 
     AsyncFunction("startSession") { (config: [String: Any]) in
-      let carrier = config["carrierHz"]       as? Double ?? 200
-      let beat    = config["beatHz"]          as? Double ?? 10
-      let brown   = config["brownNoiseEnabled"] as? Bool ?? false
-      try self.engine.start(carrierHz: carrier, beatHz: beat, brownNoise: brown)
+      let carrier    = config["carrierHz"]         as? Double ?? 200
+      let beat       = config["beatHz"]            as? Double ?? 10
+      let noiseOn    = config["brownNoiseEnabled"] as? Bool   ?? false
+      let noiseColor = config["noiseColor"]        as? String ?? "brown"
+
+      // Per-channel AM envelopes (preset architecture)
+      var amLeftHz     = config["amLeftHz"]     as? Double ?? 0
+      var amLeftDepth  = config["amLeftDepth"]  as? Double ?? 0
+      let amRightHz    = config["amRightHz"]    as? Double ?? 0
+      let amRightDepth = config["amRightDepth"] as? Double ?? 0
+
+      // Legacy calibration keys — asymmetric SMR maps onto left-channel AM
+      if (config["asymmetricSMR"] as? Bool ?? false) && amLeftDepth == 0 {
+        amLeftHz    = config["smrHz"]    as? Double ?? 13.5
+        amLeftDepth = config["smrDepth"] as? Double ?? 0.85
+      }
+
+      try self.engine.start(
+        carrierHz: carrier,
+        beatHz: beat,
+        brownNoise: noiseOn,
+        pinkNoise: noiseColor == "pink",
+        amLeftHz: amLeftHz,
+        amLeftDepth: Float(amLeftDepth),
+        amRightHz: amRightHz,
+        amRightDepth: Float(amRightDepth)
+      )
     }
 
     AsyncFunction("stopSession") {
@@ -31,6 +54,26 @@ public class DialedAudioModule: Module {
 
     AsyncFunction("setBrownNoiseEnabled") { (enabled: Bool) in
       self.engine.setBrownNoiseEnabled(enabled)
+    }
+
+    AsyncFunction("setNoiseColor") { (color: String) in
+      self.engine.setNoiseColor(pink: color == "pink")
+    }
+
+    // Independent per-channel AM — resolves after the engine has accepted
+    // the parameters, so JS can await it and sequence haptics.
+    AsyncFunction("setChannelModulation") { (leftHz: Double, leftDepth: Double, rightHz: Double, rightDepth: Double) in
+      self.engine.setChannelModulation(
+        leftHz: leftHz,
+        leftDepth: Float(leftDepth),
+        rightHz: rightHz,
+        rightDepth: Float(rightDepth)
+      )
+    }
+
+    // Legacy Left-Ear SMR toggle (calibration path + Neuro-Labs live link)
+    AsyncFunction("setAsymmetricSMR") { (enabled: Bool, smrHz: Double, depth: Double) in
+      self.engine.setAsymmetricSMR(enabled: enabled, smrHz: smrHz, depth: Float(depth))
     }
   }
 }

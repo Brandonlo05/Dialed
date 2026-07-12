@@ -5,8 +5,18 @@ enum AudioEngineError: Error {
   case formatUnavailable
 }
 
-/// True-stereo binaural engine: left channel = carrierHz, right = carrierHz + beatHz.
-/// AVAudioSession category .mixWithOthers keeps Spotify and all other apps uninterrupted.
+/// True-stereo synthesis engine with independent per-channel modulation:
+///
+/// 1. Binaural (default): left = carrierHz, right = carrierHz + beatHz.
+/// 2. Per-channel AM: each channel can carry its own raised-cosine amplitude
+///    envelope (rate + depth), fully independent of the other. This covers:
+///      - Asymmetric Left-Ear SMR (left AM 12–15 Hz, right clean)
+///      - Bilateral isochronic pulses (both channels AM at e.g. 40 Hz)
+///      - Dual-band asymmetry (left 13 Hz SMR, right 10 Hz alpha)
+///    beatHz is bypassed whenever any AM envelope is active.
+/// 3. Noise layer: Brownian (default) or pink (Paul Kellett 3-pole filter).
+///
+/// AVAudioSession category .mixWithOthers keeps all other app audio uninterrupted.
 final class AudioEngineManager {
   static let shared = AudioEngineManager()
 
@@ -22,8 +32,14 @@ final class AudioEngineManager {
     var carrierHz:    Double = 200
     var beatHz:       Double = 10
     var volume:       Float  = 0.25   // direct amplitude, 0–1 range
-    var brownEnabled: Bool   = false
+    var brownEnabled: Bool   = false  // noise layer on/off
+    var pinkNoise:    Bool   = false  // false = Brownian, true = pink
     var targetGain:   Float  = 1      // 0 = fade out, 1 = fade in
+    // Independent per-channel AM envelopes (depth 0 = channel unmodulated)
+    var amLeftHz:     Double = 0
+    var amLeftDepth:  Float  = 0
+    var amRightHz:    Double = 0
+    var amRightDepth: Float  = 0
   }
   private var params     = RenderParams()
   private var paramsLock = os_unfair_lock()
@@ -31,7 +47,13 @@ final class AudioEngineManager {
   // MARK: – Render-thread-exclusive state (never touched from other threads)
   private var phaseL:     Double = 0
   private var phaseR:     Double = 0
+  private var amPhaseL:   Double = 0
+  private var amPhaseR:   Double = 0
   private var brownState: Double = 0
+  // Pink noise filter poles (Paul Kellett economy approximation)
+  private var pinkB0:     Double = 0
+  private var pinkB1:     Double = 0
+  private var pinkB2:     Double = 0
   private var currentGain: Float = 0
 
   // MARK: – Init / deinit
@@ -50,12 +72,26 @@ final class AudioEngineManager {
 
   // MARK: – Public API
 
-  func start(carrierHz: Double, beatHz: Double, brownNoise: Bool) throws {
+  func start(
+    carrierHz: Double,
+    beatHz: Double,
+    brownNoise: Bool,
+    pinkNoise: Bool = false,
+    amLeftHz: Double = 0,
+    amLeftDepth: Float = 0,
+    amRightHz: Double = 0,
+    amRightDepth: Float = 0
+  ) throws {
     withParams {
       $0.carrierHz    = carrierHz
       $0.beatHz       = beatHz
       $0.brownEnabled = brownNoise
+      $0.pinkNoise    = pinkNoise
       $0.targetGain   = 1
+      $0.amLeftHz     = Self.clampAmHz(amLeftHz)
+      $0.amLeftDepth  = max(0, min(1, amLeftDepth))
+      $0.amRightHz    = Self.clampAmHz(amRightHz)
+      $0.amRightDepth = max(0, min(1, amRightDepth))
     }
 
     // Tear down any active or fading session before rebuilding
@@ -69,7 +105,12 @@ final class AudioEngineManager {
     currentGain = 0
     phaseL      = 0
     phaseR      = 0
+    amPhaseL    = 0
+    amPhaseR    = 0
     brownState  = 0
+    pinkB0      = 0
+    pinkB1      = 0
+    pinkB2      = 0
 
     try buildGraph()
     try engine.start()
@@ -91,6 +132,41 @@ final class AudioEngineManager {
   func setBeatFrequency(_ hz: Double)          { withParams { $0.beatHz       = hz   } }
   func setVolume(_ level: Float)               { withParams { $0.volume       = max(0, min(1, level)) } }
   func setBrownNoiseEnabled(_ enabled: Bool)   { withParams { $0.brownEnabled = enabled } }
+
+  /// Set both per-channel AM envelopes live. Depth 0 disables a channel's
+  /// modulation. The render callback picks changes up on its next buffer;
+  /// the raised-cosine envelope keeps transitions click-free.
+  func setChannelModulation(leftHz: Double, leftDepth: Float, rightHz: Double, rightDepth: Float) {
+    withParams {
+      $0.amLeftHz     = Self.clampAmHz(leftHz)
+      $0.amLeftDepth  = max(0, min(1, leftDepth))
+      $0.amRightHz    = Self.clampAmHz(rightHz)
+      $0.amRightDepth = max(0, min(1, rightDepth))
+    }
+  }
+
+  /// Legacy Left-Ear SMR toggle — thin wrapper over setChannelModulation,
+  /// clamped to the SMR band. Kept for the calibration path and Neuro-Labs.
+  func setAsymmetricSMR(enabled: Bool, smrHz: Double, depth: Float) {
+    let rate = max(8, min(20, smrHz))
+    setChannelModulation(
+      leftHz: enabled ? rate : 0,
+      leftDepth: enabled ? depth : 0,
+      rightHz: 0,
+      rightDepth: 0
+    )
+  }
+
+  /// Switch the noise layer color live (false = Brownian, true = pink).
+  func setNoiseColor(pink: Bool) {
+    withParams { $0.pinkNoise = pink }
+  }
+
+  /// AM rates up to low-gamma (45 Hz) are allowed for isochronic/ASSR work;
+  /// anything faster is a synthesis artifact, not entrainment.
+  private static func clampAmHz(_ hz: Double) -> Double {
+    return max(0, min(45, hz))
+  }
 
   // MARK: – Private
 
@@ -145,8 +221,13 @@ final class AudioEngineManager {
             let rightPtr = abl[1].mData?.assumingMemoryBound(to: Float.self)
       else { return noErr }
 
-      let phaseIncL = p.carrierHz           * twoPi / sampleRate
-      let phaseIncR = (p.carrierHz + p.beatHz) * twoPi / sampleRate
+      // Any active AM envelope bypasses the binaural beat offset — modulated
+      // channels carry their entrainment in the envelope, not the beat.
+      let amActive  = p.amLeftDepth > 0 || p.amRightDepth > 0
+      let phaseIncL = p.carrierHz * twoPi / sampleRate
+      let phaseIncR = (p.carrierHz + (amActive ? 0 : p.beatHz)) * twoPi / sampleRate
+      let amIncL    = p.amLeftHz  * twoPi / sampleRate
+      let amIncR    = p.amRightHz * twoPi / sampleRate
       let target    = p.targetGain
 
       for i in 0..<Int(frameCount) {
@@ -157,9 +238,28 @@ final class AudioEngineManager {
           self.currentGain = max(target, self.currentGain - rampStep)
         }
 
-        // True stereo: L ≠ R — this is what creates the binaural beat
-        leftPtr[i]  = Float(sin(self.phaseL)) * p.volume * self.currentGain
-        rightPtr[i] = Float(sin(self.phaseR)) * p.volume * self.currentGain
+        var left  = Float(sin(self.phaseL))
+        var right = Float(sin(self.phaseR))
+
+        // Raised-cosine envelopes (0…1) — smooth, click-free AM per channel.
+        // Peak level never exceeds p.volume, so no loudness compensation is
+        // applied (avoids clipping when the noise layer is active).
+        if p.amLeftDepth > 0 {
+          let env = Float(0.5 * (1.0 - cos(self.amPhaseL)))
+          left *= (1.0 - p.amLeftDepth) + p.amLeftDepth * env
+          self.amPhaseL += amIncL
+          if self.amPhaseL >= twoPi { self.amPhaseL -= twoPi }
+        }
+        if p.amRightDepth > 0 {
+          let env = Float(0.5 * (1.0 - cos(self.amPhaseR)))
+          right *= (1.0 - p.amRightDepth) + p.amRightDepth * env
+          self.amPhaseR += amIncR
+          if self.amPhaseR >= twoPi { self.amPhaseR -= twoPi }
+        }
+
+        // True per-channel isolation: L and R streams never blend
+        leftPtr[i]  = left  * p.volume * self.currentGain
+        rightPtr[i] = right * p.volume * self.currentGain
 
         self.phaseL += phaseIncL
         self.phaseR += phaseIncR
@@ -178,6 +278,7 @@ final class AudioEngineManager {
 
       os_unfair_lock_lock(&self.paramsLock)
       let brownEnabled = self.params.brownEnabled
+      let pink         = self.params.pinkNoise
       let vol          = self.params.volume
       os_unfair_lock_unlock(&self.paramsLock)
 
@@ -194,14 +295,24 @@ final class AudioEngineManager {
         return noErr
       }
 
-      let brownAmp = vol * 0.20   // Brown noise rides 20% of the binaural volume
+      let noiseAmp = vol * 0.20   // Noise layer rides 20% of the tone volume
 
       for i in 0..<Int(frameCount) {
         let white = Double.random(in: -1.0...1.0)
-        // First-order Brownian integrator — naturally bounded
-        self.brownState = (self.brownState + white * 0.02) / 1.02
+        let raw: Double
+        if pink {
+          // Paul Kellett economy pink filter — ~-3 dB/octave, render-safe
+          self.pinkB0 = 0.99765 * self.pinkB0 + white * 0.0990460
+          self.pinkB1 = 0.96300 * self.pinkB1 + white * 0.2965164
+          self.pinkB2 = 0.57000 * self.pinkB2 + white * 1.0526913
+          raw = (self.pinkB0 + self.pinkB1 + self.pinkB2 + white * 0.1848) * 0.12
+        } else {
+          // First-order Brownian integrator — naturally bounded
+          self.brownState = (self.brownState + white * 0.02) / 1.02
+          raw = self.brownState
+        }
         // Hard clip against rare large excursions then apply gain ramp
-        let sample = Float(max(-1.0, min(1.0, self.brownState))) * brownAmp * self.currentGain
+        let sample = Float(max(-1.0, min(1.0, raw))) * noiseAmp * self.currentGain
         leftPtr[i]  = sample
         rightPtr[i] = sample
       }

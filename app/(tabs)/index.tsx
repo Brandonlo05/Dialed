@@ -12,15 +12,30 @@ import {
   startAudioSession,
   stopAudioSession,
 } from '../../src/services/audioEngine';
+import {
+  NEURO_PRESETS,
+  startNeuroPreset,
+  stopNeuroPreset,
+  type BurnoutTick,
+  type NeuroPresetId,
+} from '../../src/services/audioPresets';
 import { recordSession, type SessionSummaryData } from '../../src/services/gamification';
-import { tapConfirm } from '../../src/services/haptics';
+import { celebrate, engagePreset, tapConfirm } from '../../src/services/haptics';
 import { calibrate, getCachedProfile, recommendedModeId } from '../../src/services/userProfile';
 
+function formatCountdown(sec: number): string {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
 export default function DashboardScreen() {
-  const [activeMode, setActiveMode] = useState<FocusModeId | null>(null);
-  const [isPlaying, setIsPlaying]   = useState(false);
-  const [elapsedSec, setElapsedSec] = useState(0);
-  const [summary, setSummary]       = useState<SessionSummaryData | null>(null);
+  const [activeMode, setActiveMode]     = useState<FocusModeId | null>(null);
+  const [activePreset, setActivePreset] = useState<NeuroPresetId | null>(null);
+  const [burnoutTick, setBurnoutTick]   = useState<BurnoutTick | null>(null);
+  const [isPlaying, setIsPlaying]       = useState(false);
+  const [elapsedSec, setElapsedSec]     = useState(0);
+  const [summary, setSummary]           = useState<SessionSummaryData | null>(null);
 
   const sessionStartRef = useRef<number | null>(null);
 
@@ -28,6 +43,7 @@ export default function DashboardScreen() {
   const recommendedId = profile ? recommendedModeId(profile.goal) : null;
   const activeModeData = FOCUS_MODES.find((m) => m.id === activeMode);
   const activeCalibration = activeModeData ? calibrate(activeModeData, profile) : null;
+  const activePresetData = NEURO_PRESETS.find((p) => p.id === activePreset);
 
   // ── Session clock (wall-clock based — immune to JS timer drift) ────────────
   useEffect(() => {
@@ -40,48 +56,124 @@ export default function DashboardScreen() {
     return () => clearInterval(interval);
   }, [isPlaying]);
 
+  // ── Unified teardown: audio off, sweep clock cleared, XP recorded ─────────
+  const finishSession = useCallback(async () => {
+    stopNeuroPreset();
+    await stopAudioSession();
+    const startedAt = sessionStartRef.current;
+    sessionStartRef.current = null;
+    setIsPlaying(false);
+    setActiveMode(null);
+    setActivePreset(null);
+    setBurnoutTick(null);
+    setElapsedSec(0);
+
+    const minutes = startedAt ? (Date.now() - startedAt) / 60_000 : 0;
+    if (minutes >= 1) {
+      setSummary(await recordSession(minutes, profile?.goal ?? null));
+    }
+  }, [profile]);
+
+  // Fresh reference for async preset callbacks (avoids stale closures)
+  const finishRef = useRef(finishSession);
+  finishRef.current = finishSession;
+
+  // Clear the sweep clock if the dashboard ever unmounts mid-session
+  useEffect(() => () => { stopNeuroPreset(); }, []);
+
+  // ── Entrainment modes ──────────────────────────────────────────────────────
   const toggleMode = useCallback(
     async (modeId: FocusModeId) => {
       const mode = FOCUS_MODES.find((m) => m.id === modeId);
       if (!mode) return;
 
-      // ── Stop current session → record XP + show reward card ───────────────
       if (activeMode === modeId && isPlaying) {
-        await stopAudioSession();
-        const startedAt = sessionStartRef.current;
-        sessionStartRef.current = null;
-        setIsPlaying(false);
-        setActiveMode(null);
-        setElapsedSec(0);
-
-        const minutes = startedAt ? (Date.now() - startedAt) / 60_000 : 0;
-        if (minutes >= 1) {
-          setSummary(await recordSession(minutes, profile?.goal ?? null));
-        }
+        await finishSession();
         return;
       }
 
-      // ── Start (or hot-swap) a session with calibrated parameters ──────────
       tapConfirm();
+      stopNeuroPreset();
       const cal = calibrate(mode, profile);
       setActiveMode(modeId);
+      setActivePreset(null);
+      setBurnoutTick(null);
 
       await startAudioSession({
         carrierHz:         cal.carrierHz,
         beatHz:            cal.beatHz,
         brownNoiseEnabled: cal.brownNoise,
+        asymmetricSMR:     cal.asymmetricSMR,
+        smrHz:             cal.smrHz,
+        smrDepth:          cal.smrDepth,
       });
       void setVolume(cal.volume);
 
-      // Hot-swapping modes keeps the clock running; a fresh start resets it
+      // Deep confirmation bloom once the asymmetric L-ear alignment is live —
+      // startAudioSession resolves only after the native engine has started.
+      if (cal.asymmetricSMR) celebrate();
+
       if (!isPlaying) {
         sessionStartRef.current = Date.now();
         setElapsedSec(0);
       }
       setIsPlaying(true);
     },
-    [activeMode, isPlaying, profile],
+    [activeMode, isPlaying, profile, finishSession],
   );
+
+  // ── Clinical neuro-presets ────────────────────────────────────────────────
+  const togglePreset = useCallback(
+    async (presetId: NeuroPresetId) => {
+      if (activePreset === presetId && isPlaying) {
+        await finishSession();
+        return;
+      }
+
+      engagePreset(); // distinct two-stage notification pattern
+      setActiveMode(null);
+      setActivePreset(presetId);
+      setBurnoutTick(null);
+
+      await startNeuroPreset(presetId, {
+        onBurnoutTick: setBurnoutTick,
+        onComplete: () => { void finishRef.current(); },
+      });
+
+      if (!isPlaying) {
+        sessionStartRef.current = Date.now();
+        setElapsedSec(0);
+      }
+      setIsPlaying(true);
+    },
+    [activePreset, isPlaying, finishSession],
+  );
+
+  // ── Ring pulse rate: live sweep value for Burnout, fixed rate otherwise ───
+  const ringHz = activePresetData
+    ? activePreset === 'burnout'
+      ? burnoutTick?.beatHz ?? 18
+      : activePresetData.displayHz
+    : activeCalibration?.beatHz ?? 10;
+
+  const statusText = (() => {
+    if (!isPlaying) return 'Select a mode to begin entrainment';
+    if (activePreset === 'burnout') {
+      return `Burnout Mode · ${(burnoutTick?.beatHz ?? 18).toFixed(1)} Hz · deceleration sweep`;
+    }
+    if (activePreset === 'screen-fog') {
+      return 'Screen Fog Cleanser · 400 Hz · 40 Hz gamma ASSR · pink noise';
+    }
+    if (activePreset === 'pre-exam') {
+      return 'Pre-Exam Reset · L 13 Hz SMR · R 10 Hz alpha';
+    }
+    if (activeModeData && activeCalibration) {
+      return activeCalibration.asymmetricSMR
+        ? `${activeModeData.title} · ${Math.round(activeCalibration.carrierHz)} Hz carrier · SMR ${activeCalibration.smrHz} Hz · L-ear lock`
+        : `${activeModeData.title} · ${Math.round(activeCalibration.carrierHz)} Hz carrier · ${activeCalibration.beatHz} Hz beat`;
+    }
+    return 'Session active';
+  })();
 
   return (
     <SafeAreaView className="flex-1 bg-dialed-bg" edges={['top']}>
@@ -107,21 +199,56 @@ export default function DashboardScreen() {
                 backgroundColor: isPlaying ? '#4ade80' : 'rgba(255,255,255,0.18)',
               }}
             />
-            <Text className="text-xs text-dialed-muted">
-              {isPlaying && activeModeData && activeCalibration
-                ? `${activeModeData.title} · ${Math.round(activeCalibration.carrierHz)} Hz carrier · ${activeCalibration.beatHz} Hz beat`
-                : 'Select a mode to begin entrainment'}
-            </Text>
+            <Text className="text-xs text-dialed-muted">{statusText}</Text>
           </View>
+
+          {/* Burnout phase countdown — tracks the sweep through its 3 phases */}
+          {isPlaying && activePreset === 'burnout' && burnoutTick && (
+            <View
+              className="mt-2 self-start flex-row items-center rounded-full px-3 py-1"
+              style={{
+                backgroundColor: 'rgba(251,146,60,0.13)',
+                borderWidth: 1,
+                borderColor: 'rgba(251,146,60,0.4)',
+                gap: 6,
+              }}
+            >
+              <View className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: '#fb923c' }} />
+              <Text className="text-[11px] font-semibold" style={{ color: '#fb923c' }}>
+                {burnoutTick.phaseLabel}
+              </Text>
+              <Text
+                className="text-[11px] text-dialed-muted"
+                style={{ fontVariant: ['tabular-nums'] }}
+              >
+                {formatCountdown(burnoutTick.remainingSec)} remaining
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* ── Live focus ring ─────────────────────────────────────────────── */}
-        {isPlaying && activeCalibration && (
-          <FocusRing elapsedSec={elapsedSec} beatHz={activeCalibration.beatHz} />
-        )}
+        {isPlaying && <FocusRing elapsedSec={elapsedSec} beatHz={ringHz} />}
+
+        {/* ── Clinical neuro-presets ──────────────────────────────────────── */}
+        <Text className="mb-3 mt-2 text-[11px] font-semibold uppercase tracking-[3px] text-dialed-muted">
+          Clinical Neuro-Presets
+        </Text>
+        {NEURO_PRESETS.map((preset) => (
+          <GlassCard
+            key={preset.id}
+            title={preset.title}
+            subtitle={preset.subtitle}
+            accent={preset.accent}
+            icon={preset.icon}
+            selected={activePreset === preset.id}
+            badge={preset.badge}
+            onPress={() => togglePreset(preset.id)}
+          />
+        ))}
 
         {/* ── Mode Cards ───────────────────────────────────────────────────── */}
-        <Text className="mb-3 mt-2 text-[11px] font-semibold uppercase tracking-[3px] text-dialed-muted">
+        <Text className="mb-3 mt-4 text-[11px] font-semibold uppercase tracking-[3px] text-dialed-muted">
           Entrainment Modes
         </Text>
         {FOCUS_MODES.map((mode) => (

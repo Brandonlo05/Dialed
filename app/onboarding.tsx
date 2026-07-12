@@ -43,7 +43,7 @@ const STEPS: Step[] = [
     accent: NEON.violet,
     options: [
       { id: 'neurotypical', title: 'Steady Baseline',   desc: 'Standard entrainment curve — no adjustments', icon: '◎' },
-      { id: 'adhd',         title: 'Hyper-Active',      desc: 'ADHD pattern — SMR 12–15 Hz stabilization band', icon: '⚡' },
+      { id: 'adhd',         title: 'Hyper-Active',      desc: 'ADHD pattern — asymmetric left-ear SMR 12–15 Hz', icon: '⚡' },
       { id: 'anxiety',      title: 'Prone to Anxiety',  desc: 'Soft carriers capped at 300 Hz + calming theta', icon: '〜' },
       { id: 'fatigue',      title: 'Chronic Fatigue',   desc: 'Gentle alerting lift in the 10–14 Hz band', icon: '☾' },
     ],

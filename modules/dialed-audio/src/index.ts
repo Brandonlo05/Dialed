@@ -1,9 +1,23 @@
 import { requireNativeModule } from 'expo-modules-core';
 
+export type NoiseColor = 'brown' | 'pink';
+
 export type AudioSessionConfig = {
   carrierHz: number;
   beatHz: number;
+  /** Noise layer on/off (color chosen by noiseColor). */
   brownNoiseEnabled?: boolean;
+  /** 'brown' (default) or 'pink'. */
+  noiseColor?: NoiseColor;
+  /** Independent per-channel AM envelopes — depth 0 leaves a channel clean. */
+  amLeftHz?: number;
+  amLeftDepth?: number;
+  amRightHz?: number;
+  amRightDepth?: number;
+  /** Legacy asymmetric Left-Ear SMR keys — mapped onto left-channel AM natively. */
+  asymmetricSMR?: boolean;
+  smrHz?: number;
+  smrDepth?: number;
 };
 
 type DialedAudioNative = {
@@ -13,6 +27,14 @@ type DialedAudioNative = {
   setBeatFrequency(hz: number): Promise<void>;
   setVolume(level: number): Promise<void>;
   setBrownNoiseEnabled(enabled: boolean): Promise<void>;
+  setNoiseColor(color: NoiseColor): Promise<void>;
+  setChannelModulation(
+    leftHz: number,
+    leftDepth: number,
+    rightHz: number,
+    rightDepth: number,
+  ): Promise<void>;
+  setAsymmetricSMR(enabled: boolean, smrHz: number, depth: number): Promise<void>;
 };
 
 export default requireNativeModule<DialedAudioNative>('DialedAudio');

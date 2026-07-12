@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { NeuroLab } from '../../src/components/NeuroLab';
 import { NEON } from '../../src/constants/theme';
 import { setBrownNoiseEnabled } from '../../src/services/audioEngine';
 import { tapSelect } from '../../src/services/haptics';
@@ -154,6 +155,9 @@ export default function SettingsScreen() {
           value={watchSync}
           onChange={(v) => { tapSelect(); setWatchSync(v); }}
         />
+
+        {/* ── Neuro-Labs diagnostic panel ──────────────────────────────────── */}
+        <NeuroLab />
 
         {/* ── Closed-loop note ─────────────────────────────────────────────── */}
         <View
