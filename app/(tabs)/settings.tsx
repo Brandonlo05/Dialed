@@ -13,6 +13,7 @@ import {
   COGNITIVE_LABELS,
   ENVIRONMENT_LABELS,
   GOAL_LABELS,
+  SCAFFOLDING_LABELS,
   getCachedProfile,
 } from '../../src/services/userProfile';
 
@@ -117,6 +118,12 @@ export default function SettingsScreen() {
                   <Text className="text-xs text-dialed-muted">Objective</Text>
                   <Text className="text-xs font-semibold text-dialed-stat">
                     {GOAL_LABELS[profile.goal]}
+                  </Text>
+                </View>
+                <View className="flex-row justify-between">
+                  <Text className="text-xs text-dialed-muted">Sensory scaffolding</Text>
+                  <Text className="text-xs font-semibold text-dialed-stat">
+                    {SCAFFOLDING_LABELS[profile.sensoryScaffolding ?? 'minimalist-ambient']}
                   </Text>
                 </View>
               </View>

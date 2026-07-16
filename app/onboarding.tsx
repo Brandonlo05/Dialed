@@ -186,6 +186,7 @@ export default function OnboardingScreen() {
       cognitive: 'neurotypical',
       environment: 'office-hum',
       goal: 'linear-execution',
+      sensoryScaffolding: 'minimalist-ambient',
       calibratedAt: new Date().toISOString(),
     });
     router.replace('/(tabs)');

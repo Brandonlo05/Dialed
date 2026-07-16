@@ -3,8 +3,10 @@ import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CommandSheet, type SheetProgram } from '../../src/components/CommandSheet';
+import { DailyRep } from '../../src/components/DailyRep';
 import { FocusRing } from '../../src/components/FocusRing';
 import { GlassCard } from '../../src/components/GlassCard';
+import { ManualTuner } from '../../src/components/ManualTuner';
 import { SessionSummary } from '../../src/components/SessionSummary';
 import { StatBox } from '../../src/components/StatBox';
 import { FOCUS_MODES, STAT_BOXES, type FocusModeId } from '../../src/constants/modes';
@@ -97,6 +99,13 @@ export default function DashboardScreen() {
     const timer = setTimeout(() => setSheetProgram(recommended), 500);
     return () => clearTimeout(timer);
   }, []);
+
+  // Self-contained modules (Daily Rep, Manual Tuner) call this before
+  // taking the engine, so a running program session ends cleanly and its
+  // XP is banked instead of being silently torn down natively.
+  const yieldAudio = useCallback(async () => {
+    if (isPlaying) await finishSession();
+  }, [isPlaying, finishSession]);
 
   // ── Session starters (fired by the Command Sheet's ENGAGE button) ─────────
   const startMode = useCallback(
@@ -296,6 +305,9 @@ export default function DashboardScreen() {
         {/* ── Live focus ring ─────────────────────────────────────────────── */}
         {isPlaying && <FocusRing elapsedSec={elapsedSec} beatHz={ringHz} />}
 
+        {/* ── Daily Cognitive Rep — top-priority mission ──────────────────── */}
+        <DailyRep onBeforeStart={yieldAudio} />
+
         {/* ── Clinical neuro-presets ──────────────────────────────────────── */}
         <Text className="mb-3 mt-2 text-[11px] font-semibold uppercase tracking-[3px] text-dialed-muted">
           Clinical Neuro-Presets
@@ -329,6 +341,9 @@ export default function DashboardScreen() {
             onPress={() => onModeCardPress(mode.id)}
           />
         ))}
+
+        {/* ── Manual Tuner — freeform 1–100 Hz synthesizer ─────────────────── */}
+        <ManualTuner onBeforeStart={yieldAudio} externalSessionActive={isPlaying} />
 
         {/* ── Stats Grid ───────────────────────────────────────────────────── */}
         <Text className="mb-3 mt-6 text-[11px] font-semibold uppercase tracking-[3px] text-dialed-muted">

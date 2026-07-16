@@ -24,11 +24,15 @@ import { loadJson, saveJson } from './storage';
 export type CognitiveProfile = 'neurotypical' | 'adhd' | 'anxiety' | 'fatigue';
 export type Environment = 'silent' | 'coffee-shop' | 'office-hum' | 'creative-chaos';
 export type SessionGoal = 'linear-execution' | 'rapid-tasks' | 'creative-ideation' | 'wind-down';
+/** Audio texture bias from the Cognitive OS diagnostic question. */
+export type SensoryScaffolding = 'high-valence-cyberpunk' | 'minimalist-ambient';
 
 export type UserProfile = {
   cognitive: CognitiveProfile;
   environment: Environment;
   goal: SessionGoal;
+  /** Neurodivergent → high-valence scaffolding; absent (legacy) → minimalist. */
+  sensoryScaffolding?: SensoryScaffolding;
   /** Raw answers from the Neural Diagnostic onboarding (absent on legacy profiles). */
   diagnostic?: DiagnosticAnswers;
   /** ISO timestamp of when calibration was completed. */
@@ -127,6 +131,13 @@ export function calibrate(mode: FocusMode, profile: UserProfile | null): AudioCa
   volume = env.volume;
   brownNoise = brownNoise || env.forceBrown;
 
+  // 2b) Sensory scaffolding — neurodivergent profiles get a constant
+  // low-level noise floor as a non-distracting interest anchor; the
+  // minimalist profile leaves each mode's default texture untouched.
+  if (profile.sensoryScaffolding === 'high-valence-cyberpunk') {
+    brownNoise = true;
+  }
+
   // 3) Session goal
   if (profile.goal === 'wind-down') {
     // Nervous-system downshift — theta ceiling, softer floor.
@@ -148,7 +159,7 @@ export function calibrate(mode: FocusMode, profile: UserProfile | null): AudioCa
  */
 export function deriveCalibrationFromDiagnostic(
   d: DiagnosticAnswers,
-): Pick<UserProfile, 'cognitive' | 'environment' | 'goal'> {
+): Pick<UserProfile, 'cognitive' | 'environment' | 'goal' | 'sensoryScaffolding'> {
   let cognitive: CognitiveProfile;
   switch (d.bottleneck) {
     case 'high-pressure-anxiety':
@@ -176,7 +187,10 @@ export function deriveCalibrationFromDiagnostic(
     : d.bottleneck === 'high-pressure-anxiety' ? 'creative-ideation'
     : 'wind-down';
 
-  return { cognitive, environment, goal };
+  const sensoryScaffolding: SensoryScaffolding =
+    d.cognitiveOs === 'neurodivergent' ? 'high-valence-cyberpunk' : 'minimalist-ambient';
+
+  return { cognitive, environment, goal, sensoryScaffolding };
 }
 
 /** Classification router — the ideal program for the user's bottleneck. */
@@ -234,4 +248,9 @@ export const GOAL_LABELS: Record<SessionGoal, string> = {
   'rapid-tasks':       'Rapid Task Execution',
   'creative-ideation': 'Deep Creative Ideation',
   'wind-down':         'Nervous System Wind Down',
+};
+
+export const SCAFFOLDING_LABELS: Record<SensoryScaffolding, string> = {
+  'high-valence-cyberpunk': 'High-Valence Cyberpunk',
+  'minimalist-ambient':     'Minimalist Ambient',
 };

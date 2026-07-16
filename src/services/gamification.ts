@@ -97,7 +97,8 @@ export type SessionSummaryData = {
   somaticStillness: number;
 };
 
-function localDay(d = new Date()): string {
+/** Local-timezone calendar day (YYYY-MM-DD) — shared by streak systems. */
+export function localDay(d = new Date()): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 

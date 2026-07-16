@@ -4,12 +4,14 @@
  * recommendation and the derived audio-calibration profile.
  */
 
+export type CognitiveOs = 'neurodivergent' | 'neurotypical';
 export type Arena = 'student' | 'engineer-creator' | 'athlete-gamer' | 'professional';
 export type Bottleneck = 'sluggish' | 'mid-day-fog' | 'high-pressure-anxiety' | 'total-burnout';
 export type StressResponse = 'anxious-restless' | 'sluggish-paralyzed';
 export type AgeBracket = 'under-18' | '18-24' | '25-34' | '35-plus';
 
 export type DiagnosticAnswers = {
+  cognitiveOs: CognitiveOs;
   arena: Arena;
   bottleneck: Bottleneck;
   stressResponse: StressResponse;
@@ -34,6 +36,26 @@ export type DiagnosticQuestion = {
 };
 
 export const DIAGNOSTIC_QUESTIONS: DiagnosticQuestion[] = [
+  {
+    key: 'cognitiveOs',
+    kicker: 'Cognitive Operating Profile',
+    question: 'Select your cognitive operating profile.',
+    accent: '#f472b6',
+    options: [
+      {
+        id: 'neurodivergent',
+        label: 'Neurodivergent',
+        desc: 'ADHD · ADD · ASD — high-valence sensory scaffolding, non-distracting interest layer',
+        icon: '⌬',
+      },
+      {
+        id: 'neurotypical',
+        label: 'Neurotypical',
+        desc: 'Standard response curve — clean, minimalist low-stimulus audio profile',
+        icon: '◎',
+      },
+    ],
+  },
   {
     key: 'arena',
     kicker: 'The Arena',
