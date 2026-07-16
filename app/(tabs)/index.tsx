@@ -1,5 +1,6 @@
+import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CommandSheet, type SheetProgram } from '../../src/components/CommandSheet';
@@ -25,6 +26,7 @@ import {
 } from '../../src/services/audioPresets';
 import { recordSession, type SessionSummaryData } from '../../src/services/gamification';
 import { celebrate, engagePreset, tapConfirm, tapSelect } from '../../src/services/haptics';
+import { getTailoredCardConfig } from '../../src/services/tailoredCopy';
 import {
   calibrate,
   consumePendingRecommendation,
@@ -49,7 +51,17 @@ export default function DashboardScreen() {
 
   const sessionStartRef = useRef<number | null>(null);
 
+  // Re-read the cached profile every time this tab gains focus, so a
+  // recalibration in Settings live-morphs all tailored copy — no restart.
+  const [, setProfileTick] = useState(0);
+  useFocusEffect(
+    useCallback(() => {
+      setProfileTick((t) => t + 1);
+    }, []),
+  );
+
   const profile = getCachedProfile();
+  const tailored = getTailoredCardConfig(profile);
   const recommendedId = profile ? recommendedModeId(profile.goal) : null;
   const activeModeData = FOCUS_MODES.find((m) => m.id === activeMode);
   const activeCalibration = activeModeData ? calibrate(activeModeData, profile) : null;
@@ -200,28 +212,36 @@ export default function DashboardScreen() {
     }
   }, [sheetProgram, startMode, startPreset]);
 
-  // Sheet metadata for whichever program is being previewed
+  // Sheet metadata for whichever program is being previewed — the user's
+  // tailored program carries its personalized title and copy everywhere.
   const sheetMeta: SheetProgram | null = (() => {
     if (!sheetProgram) return null;
+    let meta: SheetProgram | null = null;
     const preset = NEURO_PRESETS.find((p) => p.id === sheetProgram);
     if (preset) {
-      return {
+      meta = {
         id: sheetProgram,
         title: preset.title,
         subtitle: preset.subtitle,
         icon: preset.icon,
         beatHz: preset.displayHz,
       };
+    } else {
+      const mode = FOCUS_MODES.find((m) => m.id === sheetProgram);
+      if (mode) {
+        meta = {
+          id: sheetProgram,
+          title: mode.title,
+          subtitle: mode.subtitle,
+          icon: mode.icon,
+          beatHz: PRESET_UX_DATA[sheetProgram].targetHz,
+        };
+      }
     }
-    const mode = FOCUS_MODES.find((m) => m.id === sheetProgram);
-    if (!mode) return null;
-    return {
-      id: sheetProgram,
-      title: mode.title,
-      subtitle: mode.subtitle,
-      icon: mode.icon,
-      beatHz: PRESET_UX_DATA[sheetProgram].targetHz,
-    };
+    if (meta && meta.id === tailored.programId) {
+      meta = { ...meta, title: tailored.title, subtitle: tailored.cardSubtitle };
+    }
+    return meta;
   })();
 
   // ── Ring pulse rate: live sweep value for Burnout, fixed rate otherwise ───
@@ -305,6 +325,54 @@ export default function DashboardScreen() {
         {/* ── Live focus ring ─────────────────────────────────────────────── */}
         {isPlaying && <FocusRing elapsedSec={elapsedSec} beatHz={ringHz} />}
 
+        {/* ── Command Center — hyper-personalized protocol card ───────────── */}
+        <Pressable
+          onPress={() => { tapSelect(); setSheetProgram(tailored.programId); }}
+          className="mb-4 overflow-hidden rounded-3xl"
+          style={{
+            borderWidth: 1.5,
+            borderColor: `${tailored.accent}55`,
+            backgroundColor: '#000000',
+            shadowColor: tailored.accent,
+            shadowOpacity: 0.4,
+            shadowRadius: 26,
+            shadowOffset: { width: 0, height: 0 },
+            elevation: 14,
+          }}
+        >
+          <View className="px-5 py-5">
+            <View className="flex-row items-center justify-between">
+              <Text
+                className="text-[10px] font-bold uppercase tracking-[3.5px]"
+                style={{ color: tailored.accent }}
+              >
+                Your Protocol
+              </Text>
+              <View
+                className="rounded-full px-2.5 py-1"
+                style={{
+                  backgroundColor: `${tailored.accent}14`,
+                  borderWidth: 1,
+                  borderColor: `${tailored.accent}45`,
+                }}
+              >
+                <Text
+                  className="text-[10px] font-bold"
+                  style={{ color: tailored.accent, fontVariant: ['tabular-nums'] }}
+                >
+                  {tailored.targetHz} Hz
+                </Text>
+              </View>
+            </View>
+            <Text className="mt-2.5 text-[21px] font-black tracking-tight text-dialed-stat">
+              {tailored.title}
+            </Text>
+            <Text className="mt-1.5 text-xs leading-[19px] text-dialed-muted">
+              {tailored.subtitle}
+            </Text>
+          </View>
+        </Pressable>
+
         {/* ── Daily Cognitive Rep — top-priority mission ──────────────────── */}
         <DailyRep onBeforeStart={yieldAudio} />
 
@@ -312,35 +380,41 @@ export default function DashboardScreen() {
         <Text className="mb-3 mt-2 text-[11px] font-semibold uppercase tracking-[3px] text-dialed-muted">
           Clinical Neuro-Presets
         </Text>
-        {NEURO_PRESETS.map((preset) => (
-          <GlassCard
-            key={preset.id}
-            title={preset.title}
-            subtitle={preset.subtitle}
-            accent={preset.accent}
-            icon={preset.icon}
-            selected={activePreset === preset.id}
-            badge={preset.badge}
-            onPress={() => onPresetCardPress(preset.id)}
-          />
-        ))}
+        {NEURO_PRESETS.map((preset) => {
+          const isTailored = preset.id === tailored.programId;
+          return (
+            <GlassCard
+              key={preset.id}
+              title={isTailored ? tailored.title : preset.title}
+              subtitle={isTailored ? tailored.cardSubtitle : preset.subtitle}
+              accent={preset.accent}
+              icon={preset.icon}
+              selected={activePreset === preset.id}
+              badge={isTailored ? 'Yours' : preset.badge}
+              onPress={() => onPresetCardPress(preset.id)}
+            />
+          );
+        })}
 
         {/* ── Mode Cards ───────────────────────────────────────────────────── */}
         <Text className="mb-3 mt-4 text-[11px] font-semibold uppercase tracking-[3px] text-dialed-muted">
           Entrainment Modes
         </Text>
-        {FOCUS_MODES.map((mode) => (
-          <GlassCard
-            key={mode.id}
-            title={mode.title}
-            subtitle={mode.subtitle}
-            accent={mode.accent}
-            icon={mode.icon}
-            selected={activeMode === mode.id}
-            badge={mode.id === recommendedId ? 'Calibrated' : undefined}
-            onPress={() => onModeCardPress(mode.id)}
-          />
-        ))}
+        {FOCUS_MODES.map((mode) => {
+          const isTailored = mode.id === tailored.programId;
+          return (
+            <GlassCard
+              key={mode.id}
+              title={isTailored ? tailored.title : mode.title}
+              subtitle={isTailored ? tailored.cardSubtitle : mode.subtitle}
+              accent={mode.accent}
+              icon={mode.icon}
+              selected={activeMode === mode.id}
+              badge={isTailored ? 'Yours' : mode.id === recommendedId ? 'Calibrated' : undefined}
+              onPress={() => onModeCardPress(mode.id)}
+            />
+          );
+        })}
 
         {/* ── Manual Tuner — freeform 1–100 Hz synthesizer ─────────────────── */}
         <ManualTuner onBeforeStart={yieldAudio} externalSessionActive={isPlaying} />

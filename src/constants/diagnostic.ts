@@ -1,20 +1,25 @@
 /**
- * Neural Diagnostic Onboarding — typed question schema (4 steps).
- * Answers classify the user and drive both the smart program
- * recommendation and the derived audio-calibration profile.
+ * Neural Diagnostic Onboarding — typed question schema (5 steps).
+ *
+ * Profile axes (the personalization spine of the whole app):
+ *   operatingProfile — neurodivergent vs neurotypical (sensory scaffolding)
+ *   coreArena        — who the user is (vocabulary + copy voice)
+ *   bottleneck       — what is breaking (protocol selection)
+ *   stressSignature  — how stress expresses (somatic vs cognitive emphasis)
+ *   ageBracket       — demographic context
  */
 
-export type CognitiveOs = 'neurodivergent' | 'neurotypical';
-export type Arena = 'student' | 'engineer-creator' | 'athlete-gamer' | 'professional';
-export type Bottleneck = 'sluggish' | 'mid-day-fog' | 'high-pressure-anxiety' | 'total-burnout';
-export type StressResponse = 'anxious-restless' | 'sluggish-paralyzed';
+export type OperatingProfile = 'neurodivergent' | 'neurotypical';
+export type CoreArena = 'athlete' | 'student' | 'creator-founder';
+export type Bottleneck = 'anxiety' | 'fog' | 'sluggish' | 'burnout';
+export type StressSignature = 'somatic' | 'cognitive';
 export type AgeBracket = 'under-18' | '18-24' | '25-34' | '35-plus';
 
 export type DiagnosticAnswers = {
-  cognitiveOs: CognitiveOs;
-  arena: Arena;
+  operatingProfile: OperatingProfile;
+  coreArena: CoreArena;
   bottleneck: Bottleneck;
-  stressResponse: StressResponse;
+  stressSignature: StressSignature;
   ageBracket: AgeBracket;
 };
 
@@ -37,7 +42,7 @@ export type DiagnosticQuestion = {
 
 export const DIAGNOSTIC_QUESTIONS: DiagnosticQuestion[] = [
   {
-    key: 'cognitiveOs',
+    key: 'operatingProfile',
     kicker: 'Cognitive Operating Profile',
     question: 'Select your cognitive operating profile.',
     accent: '#f472b6',
@@ -57,15 +62,14 @@ export const DIAGNOSTIC_QUESTIONS: DiagnosticQuestion[] = [
     ],
   },
   {
-    key: 'arena',
+    key: 'coreArena',
     kicker: 'The Arena',
     question: 'Where do you deploy your focus?',
     accent: '#7c5cff',
     options: [
-      { id: 'student',          label: 'Student',            desc: 'Lectures, exams, long study blocks', icon: '✎' },
-      { id: 'engineer-creator', label: 'Engineer / Creator', desc: 'Deep work, code, design, shipping',  icon: '⌨' },
-      { id: 'athlete-gamer',    label: 'Athlete / Gamer',    desc: 'Reaction time, clutch execution',    icon: '⌖' },
-      { id: 'professional',     label: 'Professional',       desc: 'Meetings, output, sustained load',   icon: '◫' },
+      { id: 'athlete',         label: 'Athlete / Competitor', desc: 'Reaction time, clutch execution, game-day nerves', icon: '⌖' },
+      { id: 'student',         label: 'Student',              desc: 'Lectures, exams, long study blocks',               icon: '✎' },
+      { id: 'creator-founder', label: 'Creator / Founder',    desc: 'Deep work, code, design, shipping under pressure', icon: '⌨' },
     ],
   },
   {
@@ -74,20 +78,20 @@ export const DIAGNOSTIC_QUESTIONS: DiagnosticQuestion[] = [
     question: 'What is breaking your performance right now?',
     accent: '#fb923c',
     options: [
-      { id: 'sluggish',               label: 'Sluggish / Procrastination', desc: 'Cannot initiate — tasks slide for hours',   icon: '☾' },
-      { id: 'mid-day-fog',            label: 'Mid-day Fog',                desc: 'Sharp mornings collapse into screen coma',   icon: '≋' },
-      { id: 'high-pressure-anxiety',  label: 'High-pressure Anxiety',      desc: 'Racing thoughts when the stakes spike',      icon: '〜' },
-      { id: 'total-burnout',          label: 'Total Burnout',              desc: 'Wired-and-tired · cannot down-shift',        icon: '↯' },
+      { id: 'sluggish', label: 'Sluggish / Procrastination', desc: 'Cannot initiate — tasks slide for hours',    icon: '☾' },
+      { id: 'fog',      label: 'Mid-day Fog',                desc: 'Sharp mornings collapse into screen coma',    icon: '≋' },
+      { id: 'anxiety',  label: 'High-pressure Anxiety',      desc: 'Racing thoughts when the stakes spike',       icon: '〜' },
+      { id: 'burnout',  label: 'Total Burnout',              desc: 'Wired-and-tired · cannot down-shift',         icon: '↯' },
     ],
   },
   {
-    key: 'stressResponse',
+    key: 'stressSignature',
     kicker: 'Stress Signature',
-    question: 'Under pressure, your system goes…',
+    question: 'Under pressure, where does it hit first?',
     accent: '#22d3ee',
     options: [
-      { id: 'anxious-restless',   label: 'Anxious / Restless',   desc: 'Heart rate up, foot tapping, spiraling', icon: '⚡' },
-      { id: 'sluggish-paralyzed', label: 'Sluggish / Paralyzed', desc: 'System freezes — heavy, blank, stuck',   icon: '❄' },
+      { id: 'somatic',   label: 'Somatic — In the Body',  desc: 'Physical tension, jitters, tapping, tight chest', icon: '⚡' },
+      { id: 'cognitive', label: 'Cognitive — In the Mind', desc: 'Racing thoughts, looping, overthinking',          icon: '≋' },
     ],
   },
   {

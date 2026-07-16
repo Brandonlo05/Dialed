@@ -162,33 +162,37 @@ export function deriveCalibrationFromDiagnostic(
 ): Pick<UserProfile, 'cognitive' | 'environment' | 'goal' | 'sensoryScaffolding'> {
   let cognitive: CognitiveProfile;
   switch (d.bottleneck) {
-    case 'high-pressure-anxiety':
+    case 'anxiety':
       cognitive = 'anxiety';
       break;
-    case 'total-burnout':
+    case 'burnout':
       cognitive = 'fatigue';
       break;
     case 'sluggish':
-      cognitive = d.stressResponse === 'anxious-restless' ? 'adhd' : 'fatigue';
+      // Restless-body procrastination (or a neurodivergent OS) → SMR path
+      cognitive =
+        d.operatingProfile === 'neurodivergent' || d.stressSignature === 'somatic'
+          ? 'adhd'
+          : 'fatigue';
       break;
-    case 'mid-day-fog':
-      cognitive = d.stressResponse === 'sluggish-paralyzed' ? 'fatigue' : 'neurotypical';
+    case 'fog':
+      cognitive = d.stressSignature === 'somatic' ? 'fatigue' : 'neurotypical';
       break;
   }
 
   const environment: Environment =
-    d.arena === 'student' ? 'coffee-shop'
-    : d.arena === 'athlete-gamer' ? 'creative-chaos'
+    d.coreArena === 'student' ? 'coffee-shop'
+    : d.coreArena === 'athlete' ? 'creative-chaos'
     : 'office-hum';
 
   const goal: SessionGoal =
     d.bottleneck === 'sluggish' ? 'rapid-tasks'
-    : d.bottleneck === 'mid-day-fog' ? 'linear-execution'
-    : d.bottleneck === 'high-pressure-anxiety' ? 'creative-ideation'
+    : d.bottleneck === 'fog' ? 'linear-execution'
+    : d.bottleneck === 'anxiety' ? 'creative-ideation'
     : 'wind-down';
 
   const sensoryScaffolding: SensoryScaffolding =
-    d.cognitiveOs === 'neurodivergent' ? 'high-valence-cyberpunk' : 'minimalist-ambient';
+    d.operatingProfile === 'neurodivergent' ? 'high-valence-cyberpunk' : 'minimalist-ambient';
 
   return { cognitive, environment, goal, sensoryScaffolding };
 }
@@ -196,10 +200,10 @@ export function deriveCalibrationFromDiagnostic(
 /** Classification router — the ideal program for the user's bottleneck. */
 export function recommendedProgramId(bottleneck: Bottleneck): ProgramId {
   switch (bottleneck) {
-    case 'high-pressure-anxiety': return 'pre-exam';
-    case 'mid-day-fog':           return 'screen-fog';
-    case 'sluggish':              return 'caffeine-rush';
-    case 'total-burnout':         return 'burnout';
+    case 'anxiety':  return 'pre-exam';
+    case 'fog':      return 'screen-fog';
+    case 'sluggish': return 'caffeine-rush';
+    case 'burnout':  return 'burnout';
   }
 }
 
