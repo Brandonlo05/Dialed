@@ -35,8 +35,10 @@ export type NeuroPreset = {
   icon: string;
   accent: string;
   badge: string;
-  /** Modulation rate the FocusRing pulse should track. */
+  /** Modulation rate the hero waveform / pulse should track. */
   displayHz: number;
+  /** Acoustic carrier the preset runs on (drives hero waveform geometry). */
+  carrierHz: number;
   /** Fixed duration in seconds, or null for open-ended presets. */
   durationSec: number | null;
 };
@@ -50,6 +52,7 @@ export const NEURO_PRESETS: NeuroPreset[] = [
     accent: '#fb923c',
     badge: '10:00',
     displayHz: 10,
+    carrierHz: 200,
     durationSec: 600,
   },
   {
@@ -60,6 +63,7 @@ export const NEURO_PRESETS: NeuroPreset[] = [
     accent: '#22d3ee',
     badge: '40 Hz',
     displayHz: 40,
+    carrierHz: 400,
     durationSec: null,
   },
   {
@@ -70,6 +74,7 @@ export const NEURO_PRESETS: NeuroPreset[] = [
     accent: '#4ade80',
     badge: 'SMR+α',
     displayHz: 13,
+    carrierHz: 200,
     durationSec: null,
   },
   {
@@ -80,6 +85,7 @@ export const NEURO_PRESETS: NeuroPreset[] = [
     accent: '#FFD700',
     badge: '432 Hz',
     displayHz: 432,
+    carrierHz: 432,
     durationSec: null,
   },
 ];

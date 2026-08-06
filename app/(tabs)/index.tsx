@@ -3,9 +3,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ActiveProtocolEngine } from '../../src/components/ActiveProtocolEngine';
 import { CommandSheet, type SheetProgram } from '../../src/components/CommandSheet';
 import { DailyRep } from '../../src/components/DailyRep';
-import { FocusRing } from '../../src/components/FocusRing';
 import { GlassCard } from '../../src/components/GlassCard';
 import { ManualTuner } from '../../src/components/ManualTuner';
 import { SessionSummary } from '../../src/components/SessionSummary';
@@ -244,12 +244,37 @@ export default function DashboardScreen() {
     return meta;
   })();
 
-  // ── Ring pulse rate: live sweep value for Burnout, fixed rate otherwise ───
+  // ── Hero waveform parameters ──────────────────────────────────────────────
+  // Live sweep value for Burnout, fixed rate otherwise; falls back to the
+  // tailored protocol's target when idle so the hero always has a signature.
   const ringHz = activePresetData
     ? activePreset === 'burnout'
       ? burnoutTick?.beatHz ?? 18
       : activePresetData.displayHz
-    : activeCalibration?.beatHz ?? 10;
+    : activeCalibration?.beatHz ?? tailored.targetHz;
+
+  const heroCarrierHz = activePresetData
+    ? activePresetData.carrierHz
+    : activeCalibration?.carrierHz ?? 220;
+
+  const heroOvertones = activePreset === 'golden-432';
+
+  // Identity shown by the hero: the live program when engaged, otherwise the
+  // user's tailored protocol.
+  const heroTitle = isPlaying
+    ? activePresetData?.title ?? activeModeData?.title ?? tailored.title
+    : tailored.title;
+  const heroSubtitle = isPlaying
+    ? activePresetData?.subtitle ?? activeModeData?.subtitle ?? tailored.cardSubtitle
+    : tailored.subtitle;
+  const heroAccent = isPlaying
+    ? activePresetData?.accent ?? activeModeData?.accent ?? tailored.accent
+    : tailored.accent;
+
+  const heroStatusLine =
+    isPlaying && activePreset === 'burnout' && burnoutTick
+      ? `${burnoutTick.phaseLabel} · ${formatCountdown(burnoutTick.remainingSec)} remaining`
+      : null;
 
   const statusText = (() => {
     if (!isPlaying) return 'Select a mode to begin entrainment';
@@ -286,92 +311,25 @@ export default function DashboardScreen() {
             Dialed
           </Text>
 
-          {/* Session status row */}
-          <View className="mt-2 flex-row items-center" style={{ gap: 6 }}>
-            <View
-              className="h-1.5 w-1.5 rounded-full"
-              style={{
-                backgroundColor: isPlaying ? '#4ade80' : 'rgba(255,255,255,0.18)',
-              }}
-            />
-            <Text className="text-xs text-dialed-muted">{statusText}</Text>
-          </View>
-
-          {/* Burnout phase countdown — tracks the sweep through its 3 phases */}
-          {isPlaying && activePreset === 'burnout' && burnoutTick && (
-            <View
-              className="mt-2 self-start flex-row items-center rounded-full px-3 py-1"
-              style={{
-                backgroundColor: 'rgba(251,146,60,0.13)',
-                borderWidth: 1,
-                borderColor: 'rgba(251,146,60,0.4)',
-                gap: 6,
-              }}
-            >
-              <View className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: '#fb923c' }} />
-              <Text className="text-[11px] font-semibold" style={{ color: '#fb923c' }}>
-                {burnoutTick.phaseLabel}
-              </Text>
-              <Text
-                className="text-[11px] text-dialed-muted"
-                style={{ fontVariant: ['tabular-nums'] }}
-              >
-                {formatCountdown(burnoutTick.remainingSec)} remaining
-              </Text>
-            </View>
-          )}
+          {/* Engine telemetry — full signal-path detail lives here; the
+              Active Protocol Engine hero owns state and identity. */}
+          <Text className="mt-2 font-mono text-[10px] text-dialed-muted">{statusText}</Text>
         </View>
 
-        {/* ── Live focus ring ─────────────────────────────────────────────── */}
-        {isPlaying && <FocusRing elapsedSec={elapsedSec} beatHz={ringHz} />}
-
-        {/* ── Command Center — hyper-personalized protocol card ───────────── */}
-        <Pressable
-          onPress={() => { tapSelect(); setSheetProgram(tailored.programId); }}
-          className="mb-4 overflow-hidden rounded-3xl"
-          style={{
-            borderWidth: 1.5,
-            borderColor: `${tailored.accent}55`,
-            backgroundColor: '#000000',
-            shadowColor: tailored.accent,
-            shadowOpacity: 0.4,
-            shadowRadius: 26,
-            shadowOffset: { width: 0, height: 0 },
-            elevation: 14,
-          }}
-        >
-          <View className="px-5 py-5">
-            <View className="flex-row items-center justify-between">
-              <Text
-                className="text-[10px] font-bold uppercase tracking-[3.5px]"
-                style={{ color: tailored.accent }}
-              >
-                Your Protocol
-              </Text>
-              <View
-                className="rounded-full px-2.5 py-1"
-                style={{
-                  backgroundColor: `${tailored.accent}14`,
-                  borderWidth: 1,
-                  borderColor: `${tailored.accent}45`,
-                }}
-              >
-                <Text
-                  className="text-[10px] font-bold"
-                  style={{ color: tailored.accent, fontVariant: ['tabular-nums'] }}
-                >
-                  {tailored.targetHz} Hz
-                </Text>
-              </View>
-            </View>
-            <Text className="mt-2.5 text-[21px] font-black tracking-tight text-dialed-stat">
-              {tailored.title}
-            </Text>
-            <Text className="mt-1.5 text-xs leading-[19px] text-dialed-muted">
-              {tailored.subtitle}
-            </Text>
-          </View>
-        </Pressable>
+        {/* ── ACTIVE PROTOCOL ENGINE — single dominant surface ────────────── */}
+        <ActiveProtocolEngine
+          title={heroTitle}
+          subtitle={heroSubtitle}
+          accent={heroAccent}
+          targetHz={ringHz}
+          carrierHz={heroCarrierHz}
+          overtones={heroOvertones}
+          isPlaying={isPlaying}
+          elapsedSec={elapsedSec}
+          statusLine={heroStatusLine}
+          onEngage={() => { tapSelect(); setSheetProgram(tailored.programId); }}
+          onStop={() => { void finishSession(); }}
+        />
 
         {/* ── Daily Cognitive Rep — top-priority mission ──────────────────── */}
         <DailyRep onBeforeStart={yieldAudio} />
