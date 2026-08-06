@@ -22,10 +22,11 @@ import {
   setVolume,
   startAudioSession,
 } from './audioEngine';
+import { rigidLock } from './haptics';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export type NeuroPresetId = 'burnout' | 'screen-fog' | 'pre-exam';
+export type NeuroPresetId = 'burnout' | 'screen-fog' | 'pre-exam' | 'golden-432';
 
 export type NeuroPreset = {
   id: NeuroPresetId;
@@ -69,6 +70,16 @@ export const NEURO_PRESETS: NeuroPreset[] = [
     accent: '#4ade80',
     badge: 'SMR+α',
     displayHz: 13,
+    durationSec: null,
+  },
+  {
+    id: 'golden-432',
+    title: 'The Golden Frequency',
+    subtitle: 'True 432.0 Hz fundamental · Pythagorean overtone stack (108 / 216 / 864 Hz)',
+    icon: '✦',
+    accent: '#FFD700',
+    badge: '432 Hz',
+    displayHz: 432,
     durationSec: null,
   },
 ];
@@ -193,6 +204,23 @@ export async function startNeuroPreset(
         amRightDepth: 0.6,
       });
       void setVolume(0.25);
+      break;
+    }
+
+    case 'golden-432': {
+      // Mathematically true 432.0 Hz fundamental: identical phase-accumulated
+      // carriers in both ears (beatHz 0 — any offset would break exactness),
+      // no noise floor, plus the native Pythagorean overtone stack which the
+      // engine derives from the carrier: 216 Hz (f/2), 108 Hz (f/4),
+      // 864 Hz (2f). −31.7666 cents below A440 concert pitch by definition.
+      await startAudioSession({
+        carrierHz: 432.0,
+        beatHz: 0,
+        brownNoiseEnabled: false,
+        overtoneGain: 0.35,
+      });
+      void setVolume(0.28);
+      rigidLock(); // firm mechanical confirmation on frequency lock
       break;
     }
   }

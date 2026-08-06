@@ -35,6 +35,9 @@ final class AudioEngineManager {
     var brownEnabled: Bool   = false  // noise layer on/off
     var pinkNoise:    Bool   = false  // false = Brownian, true = pink
     var targetGain:   Float  = 1      // 0 = fade out, 1 = fade in
+    // Pythagorean overtone stack (carrier/4, carrier/2, carrier×2).
+    // 0 disables the entire path — existing output stays bit-identical.
+    var overtoneGain: Float  = 0
     // Independent per-channel AM envelopes (depth 0 = channel unmodulated)
     var amLeftHz:     Double = 0
     var amLeftDepth:  Float  = 0
@@ -49,6 +52,9 @@ final class AudioEngineManager {
   private var phaseR:     Double = 0
   private var amPhaseL:   Double = 0
   private var amPhaseR:   Double = 0
+  private var otPhaseHalf:   Double = 0  // carrier / 2 (216 Hz on a 432 carrier)
+  private var otPhaseQuart:  Double = 0  // carrier / 4 (108 Hz)
+  private var otPhaseOctave: Double = 0  // carrier × 2 (864 Hz)
   private var brownState: Double = 0
   // Pink noise filter poles (Paul Kellett economy approximation)
   private var pinkB0:     Double = 0
@@ -80,7 +86,8 @@ final class AudioEngineManager {
     amLeftHz: Double = 0,
     amLeftDepth: Float = 0,
     amRightHz: Double = 0,
-    amRightDepth: Float = 0
+    amRightDepth: Float = 0,
+    overtoneGain: Float = 0
   ) throws {
     withParams {
       $0.carrierHz    = carrierHz
@@ -92,6 +99,7 @@ final class AudioEngineManager {
       $0.amLeftDepth  = max(0, min(1, amLeftDepth))
       $0.amRightHz    = Self.clampAmHz(amRightHz)
       $0.amRightDepth = max(0, min(1, amRightDepth))
+      $0.overtoneGain = max(0, min(1, overtoneGain))
     }
 
     // Tear down any active or fading session before rebuilding
@@ -107,6 +115,9 @@ final class AudioEngineManager {
     phaseR      = 0
     amPhaseL    = 0
     amPhaseR    = 0
+    otPhaseHalf   = 0
+    otPhaseQuart  = 0
+    otPhaseOctave = 0
     brownState  = 0
     pinkB0      = 0
     pinkB1      = 0
@@ -160,6 +171,11 @@ final class AudioEngineManager {
   /// Switch the noise layer color live (false = Brownian, true = pink).
   func setNoiseColor(pink: Bool) {
     withParams { $0.pinkNoise = pink }
+  }
+
+  /// Pythagorean overtone stack level (0 = off, bit-identical legacy path).
+  func setOvertoneGain(_ gain: Float) {
+    withParams { $0.overtoneGain = max(0, min(1, gain)) }
   }
 
   /// AM rates up to low-gamma (45 Hz) are allowed for isochronic/ASSR work;
@@ -230,6 +246,16 @@ final class AudioEngineManager {
       let amIncR    = p.amRightHz * twoPi / sampleRate
       let target    = p.targetGain
 
+      // Pythagorean overtone stack (Golden Frequency): partials at f/2, f/4,
+      // and 2f with fixed natural-tuning weights. Precomputed per callback —
+      // zero allocations, no locks, no per-sample division. otNorm manages
+      // crest factor so carrier + stack can never clip at full volume.
+      let otGain  = p.overtoneGain
+      let otInc2  = (p.carrierHz / 2) * twoPi / sampleRate
+      let otInc4  = (p.carrierHz / 4) * twoPi / sampleRate
+      let otIncO  = (p.carrierHz * 2) * twoPi / sampleRate
+      let otNorm: Float = otGain > 0 ? 1.0 / (1.0 + 0.8 * otGain) : 1.0
+
       for i in 0..<Int(frameCount) {
         // Smooth gain ramp — prevents audible clicks on start/stop
         if self.currentGain < target {
@@ -255,6 +281,23 @@ final class AudioEngineManager {
           right *= (1.0 - p.amRightDepth) + p.amRightDepth * env
           self.amPhaseR += amIncR
           if self.amPhaseR >= twoPi { self.amPhaseR -= twoPi }
+        }
+
+        // Golden Frequency overtone stack — additive, diotic (equal in both
+        // ears), fully bypassed when gain is 0 so the legacy path is
+        // bit-identical.
+        if otGain > 0 {
+          let stack = (0.4 * Float(sin(self.otPhaseHalf))
+                     + 0.25 * Float(sin(self.otPhaseQuart))
+                     + 0.15 * Float(sin(self.otPhaseOctave))) * otGain
+          left  = (left  + stack) * otNorm
+          right = (right + stack) * otNorm
+          self.otPhaseHalf   += otInc2
+          self.otPhaseQuart  += otInc4
+          self.otPhaseOctave += otIncO
+          if self.otPhaseHalf   >= twoPi { self.otPhaseHalf   -= twoPi }
+          if self.otPhaseQuart  >= twoPi { self.otPhaseQuart  -= twoPi }
+          if self.otPhaseOctave >= twoPi { self.otPhaseOctave -= twoPi }
         }
 
         // True per-channel isolation: L and R streams never blend

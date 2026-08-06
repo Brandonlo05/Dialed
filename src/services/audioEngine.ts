@@ -16,6 +16,8 @@ export type AudioSessionConfig = {
   amLeftDepth?: number;
   amRightHz?: number;
   amRightDepth?: number;
+  /** Pythagorean overtone stack (f/4, f/2, 2f) level, 0–1. 0 = off. */
+  overtoneGain?: number;
   /** Legacy asymmetric Left-Ear SMR keys (calibration path). */
   asymmetricSMR?: boolean;
   /** SMR envelope rate in Hz (12–15 band from calibration). */
@@ -105,4 +107,10 @@ export async function setChannelModulation(
 export async function setNoiseColor(color: NoiseColor): Promise<void> {
   if (Platform.OS !== 'ios') return;
   await DialedAudioModule.setNoiseColor(color);
+}
+
+/** Golden Frequency overtone stack level (0–1); 0 disables the path. */
+export async function setOvertoneGain(gain: number): Promise<void> {
+  if (Platform.OS !== 'ios') return;
+  await DialedAudioModule.setOvertoneGain(Math.max(0, Math.min(1, gain)));
 }

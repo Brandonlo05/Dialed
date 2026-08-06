@@ -75,6 +75,19 @@ export const PRESET_UX_DATA: Record<ProgramId, ProgramUx> = {
     targetHz: 13,
     visualizer: 'bilateral-split',
   },
+  'golden-432': {
+    challenge:
+      'Standard concert pitch (A4 = 440 Hz) dominates every stream you hear. This is not a pitch-bend of 440 Hz content — it is a deterministic, phase-accumulated 432.0 Hz fundamental, synthesized from first principles.',
+    science:
+      'Natural harmonic entrainment at 432 Hz. A mathematically exact 432.0 Hz carrier (−31.77 cents below concert pitch) rendered identically in both ears, layered with a Pythagorean overtone stack at 108, 216, and 864 Hz in natural-tuning ratios.',
+    afterState:
+      'Cellular Resonance & Deep Focus. A warm, rounded, harmonically stable field — the stack breathes with the fundamental instead of beating against it, settling attention into a still, sustained hold.',
+    themeFrom: '#FFD700', // Polished Gold
+    themeTo: '#0B0C10',   // Deep Obsidian
+    glow: '#FFD700',
+    targetHz: 432,
+    visualizer: 'binaural-drift',
+  },
   'standard-focus': {
     challenge:
       "You have a four-hour study or work session ahead of you. You don't need intense, frantic pressure, but you need to sit down, ignore surrounding distractions, and maintain steady, comfortable progress.",

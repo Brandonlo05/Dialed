@@ -14,6 +14,8 @@ export type AudioSessionConfig = {
   amLeftDepth?: number;
   amRightHz?: number;
   amRightDepth?: number;
+  /** Pythagorean overtone stack (f/4, f/2, 2f) level, 0–1. 0 = off. */
+  overtoneGain?: number;
   /** Legacy asymmetric Left-Ear SMR keys — mapped onto left-channel AM natively. */
   asymmetricSMR?: boolean;
   smrHz?: number;
@@ -28,6 +30,7 @@ type DialedAudioNative = {
   setVolume(level: number): Promise<void>;
   setBrownNoiseEnabled(enabled: boolean): Promise<void>;
   setNoiseColor(color: NoiseColor): Promise<void>;
+  setOvertoneGain(gain: number): Promise<void>;
   setChannelModulation(
     leftHz: number,
     leftDepth: number,

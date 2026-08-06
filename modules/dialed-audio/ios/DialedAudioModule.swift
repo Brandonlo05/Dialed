@@ -17,6 +17,7 @@ public class DialedAudioModule: Module {
       var amLeftDepth  = config["amLeftDepth"]  as? Double ?? 0
       let amRightHz    = config["amRightHz"]    as? Double ?? 0
       let amRightDepth = config["amRightDepth"] as? Double ?? 0
+      let overtone     = config["overtoneGain"] as? Double ?? 0
 
       // Legacy calibration keys — asymmetric SMR maps onto left-channel AM
       if (config["asymmetricSMR"] as? Bool ?? false) && amLeftDepth == 0 {
@@ -32,7 +33,8 @@ public class DialedAudioModule: Module {
         amLeftHz: amLeftHz,
         amLeftDepth: Float(amLeftDepth),
         amRightHz: amRightHz,
-        amRightDepth: Float(amRightDepth)
+        amRightDepth: Float(amRightDepth),
+        overtoneGain: Float(overtone)
       )
     }
 
@@ -58,6 +60,11 @@ public class DialedAudioModule: Module {
 
     AsyncFunction("setNoiseColor") { (color: String) in
       self.engine.setNoiseColor(pink: color == "pink")
+    }
+
+    // Golden Frequency: Pythagorean overtone stack level (0–1)
+    AsyncFunction("setOvertoneGain") { (gain: Double) in
+      self.engine.setOvertoneGain(Float(gain))
     }
 
     // Independent per-channel AM — resolves after the engine has accepted

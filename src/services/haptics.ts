@@ -23,6 +23,14 @@ export function notch(): void {
   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
 }
 
+/**
+ * Rigid frequency-lock confirmation — hard, precise impact used when the
+ * engine locks onto an exact-tuning state (e.g. the 432.0 Hz fundamental).
+ */
+export function rigidLock(): void {
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Rigid).catch(() => {});
+}
+
 /** Medium thump for confirming a step or starting a session. */
 export function tapConfirm(): void {
   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
