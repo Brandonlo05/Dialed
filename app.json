@@ -43,6 +43,7 @@
       "expo-router",
       "expo-dev-client",
       "./plugins/withIosPodfilePatch.js",
+      "./plugins/withDebugSymbols.js",
       "expo-font"
     ],
     "experiments": {

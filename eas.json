@@ -26,6 +26,8 @@
       "distribution": "internal",
       "channel": "preview",
       "ios": {
+        "simulator": false,
+        "buildConfiguration": "Release",
         "resourceClass": "m-medium"
       },
       "android": {
