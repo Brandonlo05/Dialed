@@ -51,6 +51,8 @@ final class AudioEngineManager {
   private var binauralNode: AVAudioSourceNode?
   private var brownNode: AVAudioSourceNode?
   private var isRunning   = false
+  /// System ducking of other apps' audio (main-thread state, not RT).
+  private var duckExternal = false
   private var isFadingOut = false
 
   // MARK: – Parameter block (POD; published through the seqlock)
@@ -72,6 +74,19 @@ final class AudioEngineManager {
     var shelfGainDb:   Float  = 0
     var shelfCutoffHz: Float  = 200
     var shelfQ:        Float  = 0.7071
+    // ── Native frequency glide (Gym Mode tri-phasic sweeps) ──
+    // Interpolated once per BLOCK, never per frame. When both rate and tau
+    // are 0 the glide is bypassed and beatHz snaps — bit-identical legacy.
+    var beatTargetHz:  Double = 10    // destination frequency
+    var beatGlideRate: Double = 0     // Hz/sec, linear
+    var beatGlideTau:  Double = 0     // >0 → exponential approach (overrides rate)
+    // ── Isochronic pulse layer (Phase II peak drive) ──
+    // Square gate on a dedicated carrier, mixed diotically alongside the
+    // binaural pair. Level 0 bypasses the whole path.
+    var isoLevel:      Float  = 0     // 0 = layer off
+    var isoCarrierHz:  Double = 1000
+    var isoRateHz:     Double = 40
+    var isoDepth:      Float  = 1
   }
 
   // MARK: – Render-thread state (POD; owned by the IO thread after start)
@@ -96,6 +111,10 @@ final class AudioEngineManager {
     var svfL2: Float = 0
     var svfR1: Float = 0
     var svfR2: Float = 0
+    // Glide + isochronic layer state (render-thread exclusive)
+    var beatCurrent: Double = 10
+    var isoPhase:    Double = 0   // 1000 Hz carrier phase
+    var isoGate:     Double = 0   // 40 Hz gate phase
   }
 
   /// Simper low-shelf coefficients — computed once per block from the
@@ -193,7 +212,15 @@ final class AudioEngineManager {
     if isRunning || isFadingOut { immediatelySilence() }
 
     let session = AVAudioSession.sharedInstance()
-    try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+    // .mixWithOthers keeps Spotify/Apple Music playing underneath us;
+    // .allowBluetoothA2DP keeps full-bandwidth stereo over BT headphones
+    // (without it, a BT route can negotiate down to mono HFP and destroy
+    // the interaural difference the whole engine depends on).
+    try session.setCategory(
+      .playback, mode: .default,
+      options: duckExternal ? [.mixWithOthers, .allowBluetoothA2DP, .duckOthers]
+                            : [.mixWithOthers, .allowBluetoothA2DP]
+    )
     try session.setActive(true)
 
     // Reset render-thread state; render callbacks haven't started yet
@@ -252,6 +279,44 @@ final class AudioEngineManager {
   /// Pythagorean overtone stack level (0 = off, bit-identical legacy path).
   func setOvertoneGain(_ gain: Float) {
     mutateParams { $0.overtoneGain = max(0, min(1, gain)) }
+  }
+
+  /// Native frequency glide. `rateHzPerSec > 0` ramps linearly;
+  /// `tauSeconds > 0` approaches exponentially and takes precedence.
+  /// Both 0 snaps immediately (legacy behaviour).
+  func setBeatGlide(targetHz: Double, rateHzPerSec: Double, tauSeconds: Double) {
+    mutateParams {
+      $0.beatTargetHz  = max(0, min(45, targetHz))
+      $0.beatGlideRate = max(0, rateHzPerSec)
+      $0.beatGlideTau  = max(0, tauSeconds)
+    }
+  }
+
+  /// Isochronic pulse layer. `level` 0 disables the entire path.
+  func setIsochronic(level: Float, carrierHz: Double, rateHz: Double, depth: Float) {
+    mutateParams {
+      $0.isoLevel     = max(0, min(1, level))
+      $0.isoCarrierHz = max(20, min(4000, carrierHz))
+      $0.isoRateHz    = max(0.5, min(80, rateHz))
+      $0.isoDepth     = max(0, min(1, depth))
+    }
+  }
+
+  /// Toggle system ducking of OTHER apps' audio.
+  ///
+  /// iOS exposes no API to filter or gain-stage another process's audio, so
+  /// the attenuation amount and curve are chosen by the system — a custom
+  /// −4.5 dB / 150 ms sidechain is not achievable from inside our process.
+  /// Re-applies the session category, so this is main-thread only and is
+  /// never reachable from a render callback.
+  func setDuckExternalAudio(_ enabled: Bool) {
+    duckExternal = enabled
+    guard isRunning else { return }
+    try? AVAudioSession.sharedInstance().setCategory(
+      .playback, mode: .default,
+      options: enabled ? [.mixWithOthers, .allowBluetoothA2DP, .duckOthers]
+                       : [.mixWithOthers, .allowBluetoothA2DP]
+    )
   }
 
   /// Simper SVF low-shelf warmth stage. 0 dB is exactly transparent.
@@ -331,12 +396,39 @@ final class AudioEngineManager {
       } while da_seq_read_retry(seq, v)
 
       // 2) Block-level derived coefficients — never per frame.
+      // ── Block-level frequency glide (tri-phasic sweeps) ──
+      // Advanced ONCE per block, never per frame. With both glide fields at
+      // 0 this snaps to p.beatHz — bit-identical to the pre-Gym path.
+      let blockSeconds = Double(frameCount) / sampleRate
+      if p.beatGlideTau > 0 {
+        // Exponential approach: dx = (target - x)(1 - e^(-dt/tau))
+        let k = 1.0 - exp(-blockSeconds / p.beatGlideTau)
+        state.pointee.beatCurrent += (p.beatTargetHz - state.pointee.beatCurrent) * k
+      } else if p.beatGlideRate > 0 {
+        // Linear ramp, clamped so it lands exactly on target
+        let step = p.beatGlideRate * blockSeconds
+        let delta = p.beatTargetHz - state.pointee.beatCurrent
+        state.pointee.beatCurrent += delta > 0 ? min(step, delta) : max(-step, delta)
+      } else {
+        state.pointee.beatCurrent = p.beatHz
+      }
+      let beatNow = state.pointee.beatCurrent
+
       let amActive  = p.amLeftDepth > 0 || p.amRightDepth > 0
       let phaseIncL = p.carrierHz * twoPi / sampleRate
-      let phaseIncR = (p.carrierHz + (amActive ? 0 : p.beatHz)) * twoPi / sampleRate
+      let phaseIncR = (p.carrierHz + (amActive ? 0 : beatNow)) * twoPi / sampleRate
       let amIncL    = p.amLeftHz  * twoPi / sampleRate
       let amIncR    = p.amRightHz * twoPi / sampleRate
       let target    = p.targetGain
+
+      // ── Isochronic pulse layer (Phase II) ──
+      // Square gate with raised-cosine edges. A hard square would emit a
+      // click every transition (infinite slew); a ~2 ms edge is perceptually
+      // still a square pulse but band-limits the discontinuity.
+      let isoLevel = p.isoLevel
+      let isoInc   = p.isoCarrierHz * twoPi / sampleRate
+      let isoGInc  = p.isoRateHz / sampleRate          // 0…1 gate cycle per sample
+      let isoEdge  = min(0.25, max(0.002, 0.002 * p.isoRateHz)) // edge as gate fraction
 
       let otGain  = p.overtoneGain
       let otInc2  = (p.carrierHz / 2) * twoPi / sampleRate
@@ -410,6 +502,37 @@ final class AudioEngineManager {
           s.pointee.svfR1 = 2.0 * v1R - s.pointee.svfR1
           s.pointee.svfR2 = 2.0 * v2R - s.pointee.svfR2
           right = right + shelf.m1 * v1R + shelf.m2 * v2R
+        }
+
+        // Isochronic pulse layer — diotic (identical both ears), additive.
+        // Bypassed entirely at level 0 so the legacy path is untouched.
+        if isoLevel > 0 {
+          let g = s.pointee.isoGate
+          // Nominal 50% square with raised-cosine edges (~2 ms at 40 Hz).
+          // The edges cut into the on-time, so measured duty at half
+          // amplitude is (0.5 − isoEdge) ≈ 42% — intended: pulse RATE is
+          // what entrains, and the softened edge is what prevents a click
+          // at every transition.
+          var gate: Float
+          if g < isoEdge {
+            gate = Float(0.5 * (1.0 - cos(Double.pi * g / isoEdge)))
+          } else if g < 0.5 - isoEdge {
+            gate = 1
+          } else if g < 0.5 {
+            gate = Float(0.5 * (1.0 + cos(Double.pi * (g - (0.5 - isoEdge)) / isoEdge)))
+          } else {
+            gate = 0
+          }
+          // Depth 1.0 = full on/off gating; lower depth lifts the floor
+          let env = (1 - p.isoDepth) + p.isoDepth * gate
+          let iso = Float(sin(s.pointee.isoPhase)) * env * isoLevel
+          left  += iso
+          right += iso
+
+          s.pointee.isoPhase += isoInc
+          if s.pointee.isoPhase >= twoPi { s.pointee.isoPhase -= twoPi }
+          s.pointee.isoGate += isoGInc
+          if s.pointee.isoGate >= 1 { s.pointee.isoGate -= 1 }
         }
 
         // True per-channel isolation: L and R streams never blend

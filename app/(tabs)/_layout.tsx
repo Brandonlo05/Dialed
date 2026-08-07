@@ -59,6 +59,15 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="gym"
+        options={{
+          title: 'Gym',
+          tabBarIcon: ({ color, size }) => (
+            <TabIcon name="barbell-outline" color={color} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="settings"
         options={{
           title: 'Settings',

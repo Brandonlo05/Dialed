@@ -114,3 +114,39 @@ export async function setOvertoneGain(gain: number): Promise<void> {
   if (Platform.OS !== 'ios') return;
   await DialedAudioModule.setOvertoneGain(Math.max(0, Math.min(1, gain)));
 }
+
+/**
+ * Native block-level frequency glide.
+ * `rateHzPerSec > 0` ramps linearly; `tauSeconds > 0` approaches
+ * exponentially and wins. Both 0 snaps immediately.
+ */
+export async function setBeatGlide(
+  targetHz: number,
+  rateHzPerSec = 0,
+  tauSeconds = 0,
+): Promise<void> {
+  if (Platform.OS !== 'ios') return;
+  await DialedAudioModule.setBeatGlide(targetHz, rateHzPerSec, tauSeconds);
+}
+
+/** Isochronic pulse layer; level 0 disables the whole path. */
+export async function setIsochronic(
+  level: number,
+  carrierHz = 1000,
+  rateHz = 40,
+  depth = 1,
+): Promise<void> {
+  if (Platform.OS !== 'ios') return;
+  await DialedAudioModule.setIsochronic(
+    Math.max(0, Math.min(1, level)), carrierHz, rateHz, Math.max(0, Math.min(1, depth)),
+  );
+}
+
+/**
+ * Ask the system to duck other apps' audio. iOS chooses the attenuation
+ * amount and curve — apps cannot gain-stage another process's stream.
+ */
+export async function setDuckExternalAudio(enabled: boolean): Promise<void> {
+  if (Platform.OS !== 'ios') return;
+  await DialedAudioModule.setDuckExternalAudio(enabled);
+}

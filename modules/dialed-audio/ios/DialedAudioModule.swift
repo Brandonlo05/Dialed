@@ -67,6 +67,23 @@ public class DialedAudioModule: Module {
       self.engine.setOvertoneGain(Float(gain))
     }
 
+    // Gym Mode: native block-level frequency glide
+    AsyncFunction("setBeatGlide") { (targetHz: Double, rateHzPerSec: Double, tauSeconds: Double) in
+      self.engine.setBeatGlide(targetHz: targetHz, rateHzPerSec: rateHzPerSec, tauSeconds: tauSeconds)
+    }
+
+    // Gym Mode: isochronic pulse layer (level 0 = off)
+    AsyncFunction("setIsochronic") { (level: Double, carrierHz: Double, rateHz: Double, depth: Double) in
+      self.engine.setIsochronic(
+        level: Float(level), carrierHz: carrierHz, rateHz: rateHz, depth: Float(depth)
+      )
+    }
+
+    // Gym Mode: system ducking of other apps' audio (amount is OS-chosen)
+    AsyncFunction("setDuckExternalAudio") { (enabled: Bool) in
+      self.engine.setDuckExternalAudio(enabled)
+    }
+
     // Independent per-channel AM — resolves after the engine has accepted
     // the parameters, so JS can await it and sequence haptics.
     AsyncFunction("setChannelModulation") { (leftHz: Double, leftDepth: Double, rightHz: Double, rightDepth: Double) in

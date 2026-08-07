@@ -31,6 +31,9 @@ type DialedAudioNative = {
   setBrownNoiseEnabled(enabled: boolean): Promise<void>;
   setNoiseColor(color: NoiseColor): Promise<void>;
   setOvertoneGain(gain: number): Promise<void>;
+  setBeatGlide(targetHz: number, rateHzPerSec: number, tauSeconds: number): Promise<void>;
+  setIsochronic(level: number, carrierHz: number, rateHz: number, depth: number): Promise<void>;
+  setDuckExternalAudio(enabled: boolean): Promise<void>;
   setChannelModulation(
     leftHz: number,
     leftDepth: number,
