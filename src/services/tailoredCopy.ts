@@ -50,11 +50,11 @@ const CORE_MATRIX: Record<Bottleneck, Record<CoreArena, CoreEntry>> = {
   anxiety: {
     athlete: {
       title: 'Pre-Match Anchor',
-      mechanism: 'Left SMR gates somatic pre-game jitters. Right Alpha silences crowd noise.',
+      mechanism: 'Left SMR calms physical tension & restlessness. Right Alpha quiets crowd noise.',
     },
     student: {
       title: 'Pre-Exam Reset',
-      mechanism: 'Left SMR gates physical test anxiety. Right Alpha suppresses racing thoughts.',
+      mechanism: 'Left SMR calms physical tension & restlessness. Right Alpha settles racing thoughts.',
     },
     'creator-founder': {
       title: 'Pressure-State Reset',
@@ -67,12 +67,12 @@ const CORE_MATRIX: Record<Bottleneck, Record<CoreArena, CoreEntry>> = {
       mechanism: 'Bilateral 40 Hz Gamma sweeps visual-spatial networks for split-second reactions.',
     },
     student: {
-      title: 'Lecturer Fog Cleanser',
-      mechanism: '40 Hz ASSR clears screen exhaustion. Restores acetylcholine for maximum absorption.',
+      title: 'Lecture Fog Cleanser',
+      mechanism: '40 Hz ASSR clears sensory fatigue & sharpens focus for long study blocks.',
     },
     'creator-founder': {
       title: 'Deep Code Cleanse',
-      mechanism: '40 Hz Gamma synchronization clears digital fatigue. Restores analytical focus.',
+      mechanism: '40 Hz Gamma clears sensory fatigue & sharpens analytical focus.',
     },
   },
   sluggish: {
@@ -82,17 +82,17 @@ const CORE_MATRIX: Record<Bottleneck, Record<CoreArena, CoreEntry>> = {
     },
     student: {
       title: 'Morning Launch Protocol',
-      mechanism: '20 Hz High-Beta lifts noradrenergic tone to break procrastination inertia.',
+      mechanism: '20 Hz High-Beta lifts alertness to break procrastination inertia.',
     },
     'creator-founder': {
       title: 'Cold-Start Override',
-      mechanism: '20 Hz High-Beta boots the dopaminergic drive loop — zero caffeine crash.',
+      mechanism: '20 Hz High-Beta for a fast cold start — no caffeine crash.',
     },
   },
   burnout: {
     athlete: {
       title: 'Post-Comp Decompression',
-      mechanism: '18→2 Hz deceleration glide downshifts an overtrained nervous system into recovery.',
+      mechanism: '18→2 Hz deceleration glide supports parasympathetic recovery after hard output.',
     },
     student: {
       title: 'All-Nighter Recovery',
@@ -109,8 +109,8 @@ const CORE_MATRIX: Record<Bottleneck, Record<CoreArena, CoreEntry>> = {
 
 const STRESS_CLAUSE: Record<Bottleneck, Record<StressSignature, string>> = {
   anxiety: {
-    somatic:   'Tuned for somatic discharge — steadying hands, jaw, and heart rate first.',
-    cognitive: 'Tuned for cognitive quieting — collapsing thought loops before they cascade.',
+    somatic:   'Tuned for physical release — steadying hands, jaw, and breathing first.',
+    cognitive: 'Tuned for mental quieting — settling thought loops before they cascade.',
   },
   fog: {
     somatic:   'Weighted toward body re-energization — heavy eyes and slack posture lift first.',

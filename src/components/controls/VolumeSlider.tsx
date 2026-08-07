@@ -32,9 +32,9 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { NEON } from '../constants/theme';
-import { getLastVolume, setVolume } from '../services/audioEngine';
-import { notch, tick } from '../services/haptics';
+import { NEON } from '../../constants/theme';
+import { getLastVolume, setVolume } from '../../services/audioEngine';
+import { notch, tick } from '../../services/haptics';
 
 /** Hearing-safety ceiling: volumes above this trigger the high-gain state. */
 export const SAFETY_THRESHOLD = 0.7;

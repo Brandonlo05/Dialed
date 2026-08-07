@@ -26,7 +26,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import Svg, { Ellipse, Line, Path, Rect } from 'react-native-svg';
 
-import type { VisualizerVariant } from '../constants/presetUx';
+import type { VisualizerVariant } from '../../constants/presetUx';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 const AnimatedEllipse = Animated.createAnimatedComponent(Ellipse);

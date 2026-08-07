@@ -66,7 +66,7 @@ export const PRESET_UX_DATA: Record<ProgramId, ProgramUx> = {
     challenge:
       'Sitting in the lecture hall waiting for exam papers to be distributed. Your heart is pounding, you are tapping your foot uncontrollably, and you feel a wave of panic that threatens to block your memory.',
     science:
-      'Uses asymmetric multi-channel isolation. The left ear receives a 13 Hz SMR envelope to stabilize the motor strip and suppress physical jitters, while the right ear receives a coherent 10 Hz Alpha wave to down-regulate lateral amygdala activity.',
+      'Uses asymmetric multi-channel isolation. The left ear receives a 13 Hz SMR envelope associated with physical stillness, while the right ear receives a coherent 10 Hz Alpha wave associated with calm, settled attention.',
     afterState:
       'A state of relaxed alertness and physical stillness. Your hands stop shaking, your breathing patterns stabilize, and your mind feels steady, clear, and confident.',
     themeFrom: '#9D00FF', // Electric Amethyst
@@ -118,7 +118,7 @@ export const PRESET_UX_DATA: Record<ProgramId, ProgramUx> = {
     challenge:
       "You woke up groggy, your second cup of coffee isn't hitting, and you are staring blankly at your screen with zero energy or motivation to start your day.",
     science:
-      "Delivers a high-intensity 20 Hz High-Beta frequency burst to your auditory pathways to rapidly stimulate your brain's noradrenergic and dopaminergic alerting networks without a crash.",
+      'Delivers a high-intensity 20 Hz High-Beta frequency burst to your auditory pathways — a band associated with active, alert processing — for a fast lift without a caffeine crash.',
     afterState:
       'Immediate mental acceleration. You feel a surge of cognitive energy, a sharp urge to take action, and a complete clearance of morning lethargy.',
     themeFrom: '#FF007F', // Hot Cyberpunk Pink

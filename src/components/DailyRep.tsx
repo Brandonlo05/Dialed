@@ -304,7 +304,7 @@ export function DailyRep({ onBeforeStart }: DailyRepProps) {
                 NEURO-CONDITIONING REP COMPLETE
               </Text>
               <Text className="mt-2 text-center text-[11px] uppercase tracking-[2.5px] text-dialed-muted">
-                Baseline vagal tone enhanced
+                Supports parasympathetic recovery
               </Text>
 
               <Animated.View

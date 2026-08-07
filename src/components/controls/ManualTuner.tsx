@@ -19,11 +19,11 @@ import { useEffect, useRef, useState } from 'react';
 import { PanResponder, Pressable, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
-import { NEON } from '../constants/theme';
-import { setBeatFrequency, startAudioSession, stopAudioSession } from '../services/audioEngine';
-import { notch, tapConfirm, tapSelect, tick } from '../services/haptics';
-import { loadJson, saveJson } from '../services/storage';
-import { getCachedProfile } from '../services/userProfile';
+import { NEON } from '../../constants/theme';
+import { setBeatFrequency, startAudioSession, stopAudioSession } from '../../services/audioEngine';
+import { notch, tapConfirm, tapSelect, tick } from '../../services/haptics';
+import { loadJson, saveJson } from '../../services/storage';
+import { getCachedProfile } from '../../services/userProfile';
 
 const HZ_MIN = 1;
 const HZ_MAX = 100;

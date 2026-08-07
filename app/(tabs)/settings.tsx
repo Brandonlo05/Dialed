@@ -5,7 +5,7 @@ import { Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { NeuroLab } from '../../src/components/NeuroLab';
-import { VolumeSlider } from '../../src/components/VolumeSlider';
+import { VolumeSlider } from '../../src/components/controls/VolumeSlider';
 import { NEON } from '../../src/constants/theme';
 import { setBrownNoiseEnabled } from '../../src/services/audioEngine';
 import { tapSelect } from '../../src/services/haptics';

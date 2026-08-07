@@ -78,7 +78,7 @@ export function SessionSummary({ summary, onClose }: SessionSummaryProps) {
                 {summary.somaticStillness}%
               </Text>
               <Text className="text-center text-[11px] uppercase tracking-[2px] text-dialed-muted">
-                Somatic Stillness · estimated
+                Stillness Score · modeled estimate
               </Text>
             </Animated.View>
 

@@ -23,7 +23,7 @@ import Animated, {
 
 import { PRESET_UX_DATA, type ProgramId } from '../constants/presetUx';
 import { NEON } from '../constants/theme';
-import { TrajectoryGraph } from './TrajectoryGraph';
+import { TrajectoryGraph } from './neuro-visualizers/TrajectoryGraph';
 
 const SCREEN_H = Dimensions.get('window').height;
 const SHEET_H = Math.min(SCREEN_H * 0.92, 780);
