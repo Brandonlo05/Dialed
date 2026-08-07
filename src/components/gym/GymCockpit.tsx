@@ -1,5 +1,10 @@
 /**
- * Gym Mode — tri-phasic tactical cockpit.
+ * Training Mode — tri-phasic tactical cockpit.
+ *
+ * User-facing name is deliberately "Training Mode", not "Anabolic Drive":
+ * "anabolic" reads as a physiological-effect claim to App Review even
+ * though no such claim appears in body copy. The physiological rationale
+ * for the protocol stays in code comments (see services/gymProtocol.ts).
  *
  * One full-bleed surface that swaps theme, visualizer, telemetry and its
  * single primary action per phase. Phase transitions are immediate: the
@@ -90,10 +95,10 @@ export function GymCockpit() {
         {/* ── Header + route badge ─────────────────────────────────────────── */}
         <View className="mb-4 mt-4">
           <Text className="text-[11px] font-semibold uppercase tracking-[4px] text-dialed-muted">
-            Anabolic Drive
+            Training Protocol
           </Text>
           <Text className="mt-0.5 text-[34px] font-black tracking-tight text-dialed-stat">
-            Gym Mode
+            Training Mode
           </Text>
           <View
             className="mt-2.5 self-start rounded-full px-3 py-1"
