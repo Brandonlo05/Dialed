@@ -20,9 +20,19 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useSessionClock } from '../../hooks/useSessionClock';
+import {
+  addPhaseAdvanceListener,
+  disableRemoteCommands,
+  enableRemoteCommands,
+  triggerPing,
+  updateNowPlaying,
+} from '../../services/audioEngine';
 import { celebrate, engagePreset, tapConfirm, tapSelect } from '../../services/haptics';
 import {
   enterPhase,
+  nextPhase,
+  PHASE_BREATH,
+  PHASE_NOWPLAYING,
   phaseCarrier,
   phaseFrequencyAt,
   PRIMING_SEC,
@@ -30,11 +40,12 @@ import {
   stopGym,
   type GymPhase,
 } from '../../services/gymProtocol';
+import { BreathPacer } from '../neuro-visualizers/BreathPacer';
 
 // Phase themes — directive palette
 const THEME: Record<Exclude<GymPhase, 'idle'>, { color: string; label: string; kicker: string }> = {
   priming:  { color: '#FFD700', label: 'Priming',  kicker: 'Phase I · CNS Priming' },
-  drive:    { color: '#FF3B30', label: 'Drive',    kicker: 'Phase II · Peak Drive' },
+  drive:    { color: '#FF3B30', label: 'Drive',    kicker: 'Phase II · Neuromotor Drive' },
   recovery: { color: '#00E676', label: 'Recovery', kicker: 'Phase III · Inter-Set Recovery' },
 };
 
@@ -67,14 +78,53 @@ export function GymCockpit() {
   const running = phase !== 'idle';
   const elapsed = useSessionClock(running, startedAtRef);
 
-  // Always release the engine if the screen unmounts mid-protocol
-  useEffect(() => () => { void stopGym(); }, []);
+  // Always release the engine AND system transport if the screen unmounts
+  useEffect(() => () => {
+    void stopGym();
+    void disableRemoteCommands();
+  }, []);
 
   const go = useCallback((next: GymPhase) => {
     startedAtRef.current = next === 'idle' ? null : Date.now();
     setPhase(next);
     void enterPhase(next); // not awaited — UI repaints immediately
+    if (next === 'idle') {
+      void disableRemoteCommands();
+      return;
+    }
+    void triggerPing();          // in-render confirmation cue
+    void enableRemoteCommands(); // idempotent; arms headphone gestures
+    void updateNowPlaying(PHASE_NOWPLAYING[next], 'Dialed · Training Mode', 0, 0);
   }, []);
+
+  // Fresh ref so the native gesture listener never captures a stale phase
+  const phaseRef = useRef<GymPhase>('idle');
+  phaseRef.current = phase;
+
+  // Hardware headphone gestures (AirPods squeeze / XM5 tap) → advance phase
+  useEffect(() => {
+    const sub = addPhaseAdvanceListener(() => {
+      const current = phaseRef.current;
+      if (current === 'idle') return; // never start a workout from a stray tap
+      if (current === 'drive') setSetCount((n) => n + 1);
+      celebrate();
+      go(nextPhase(current));
+    });
+    return () => sub.remove();
+  }, [go]);
+
+  // Keep the lock screen / AVRCP channel alive so BT headsets keep sending
+  // gestures. Once per second — never per frame.
+  useEffect(() => {
+    if (!running) return;
+    const id = setInterval(() => {
+      const p = phaseRef.current;
+      if (p === 'idle') return;
+      const el = startedAtRef.current ? (Date.now() - startedAtRef.current) / 1000 : 0;
+      void updateNowPlaying(PHASE_NOWPLAYING[p], 'Dialed · Training Mode', el, 0);
+    }, 1000);
+    return () => clearInterval(id);
+  }, [running]);
 
   const theme = running ? THEME[phase as Exclude<GymPhase, 'idle'>] : null;
   const color = theme?.color ?? IDLE_COLOR;
@@ -201,9 +251,16 @@ export function GymCockpit() {
               </Text>
             </View>
 
-            {/* Visualizer */}
-            <View className="mt-3">
-              <PhaseVisualizer phase={phase} hz={running ? hz : 10} color={running ? color : IDLE_COLOR} />
+            {/* Visualizer — breath pacer while running, waveform on standby */}
+            <View className="mt-3 items-center">
+              {running ? (
+                <BreathPacer
+                  cycle={PHASE_BREATH[phase as Exclude<GymPhase, 'idle'>]}
+                  color={color}
+                />
+              ) : (
+                <PhaseVisualizer phase={phase} hz={10} color={IDLE_COLOR} />
+              )}
             </View>
 
             {running && (
@@ -271,9 +328,16 @@ export function GymCockpit() {
         )}
 
         <Text className="mt-5 text-[10.5px] leading-[17px] text-dialed-muted">
-          Gym Mode plays underneath your own music. During a working set the system
+          Training Mode plays underneath your own music. During a working set the system
           lowers other audio so the pulse stays audible, then hands it back for rest.
         </Text>
+        {running && (
+          <Text className="mt-2 text-[10.5px] leading-[17px] text-dialed-muted">
+            Hands-free: squeeze your AirPods stem or double-tap your headphones to move to
+            the next phase. While Training Mode runs, those gestures control Dialed instead
+            of skipping tracks in your music app.
+          </Text>
+        )}
       </ScrollView>
     </SafeAreaView>
   );

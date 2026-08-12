@@ -1,6 +1,11 @@
 import { Platform } from 'react-native';
 
-import DialedAudioModule from '../../modules/dialed-audio/src';
+import DialedAudioModule, {
+  addPhaseAdvanceListener,
+  type PhaseAdvanceEvent,
+} from '../../modules/dialed-audio/src';
+
+export type { PhaseAdvanceEvent };
 
 export type NoiseColor = 'brown' | 'pink';
 
@@ -150,3 +155,41 @@ export async function setDuckExternalAudio(enabled: boolean): Promise<void> {
   if (Platform.OS !== 'ios') return;
   await DialedAudioModule.setDuckExternalAudio(enabled);
 }
+
+/**
+ * Arm headphone transport gestures (AirPods squeeze / XM5 tap).
+ *
+ * While armed, Dialed owns the system Now Playing slot, so those gestures
+ * advance training phases INSTEAD of controlling the user's music app.
+ * Always pair with disableRemoteCommands on exit.
+ */
+export async function enableRemoteCommands(): Promise<void> {
+  if (Platform.OS !== 'ios') return;
+  await DialedAudioModule.enableRemoteCommands();
+}
+
+/** Release transport control back to iOS / the user's music app. */
+export async function disableRemoteCommands(): Promise<void> {
+  if (Platform.OS !== 'ios') return;
+  await DialedAudioModule.disableRemoteCommands();
+}
+
+/** Lock-screen + AVRCP metadata (keeps third-party BT gestures flowing). */
+export async function updateNowPlaying(
+  title: string,
+  subtitle: string,
+  elapsed: number,
+  duration: number,
+): Promise<void> {
+  if (Platform.OS !== 'ios') return;
+  await DialedAudioModule.updateNowPlaying(title, subtitle, elapsed, duration);
+}
+
+/** 1200 Hz / 100 ms / −12 dBFS confirmation cue synthesized in-render. */
+export async function triggerPing(): Promise<void> {
+  if (Platform.OS !== 'ios') return;
+  await DialedAudioModule.triggerPing();
+}
+
+/** Subscribe to hardware headphone phase-advance gestures. */
+export { addPhaseAdvanceListener };

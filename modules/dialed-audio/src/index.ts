@@ -1,6 +1,9 @@
-import { requireNativeModule } from 'expo-modules-core';
+import { EventEmitter, requireNativeModule, type EventSubscription } from 'expo-modules-core';
 
 export type NoiseColor = 'brown' | 'pink';
+
+/** Hardware headphone gesture that requested a phase advance. */
+export type PhaseAdvanceEvent = { source: 'nextTrack' | 'togglePlayPause' };
 
 export type AudioSessionConfig = {
   carrierHz: number;
@@ -34,6 +37,15 @@ type DialedAudioNative = {
   setBeatGlide(targetHz: number, rateHzPerSec: number, tauSeconds: number): Promise<void>;
   setIsochronic(level: number, carrierHz: number, rateHz: number, depth: number): Promise<void>;
   setDuckExternalAudio(enabled: boolean): Promise<void>;
+  enableRemoteCommands(): Promise<void>;
+  disableRemoteCommands(): Promise<void>;
+  updateNowPlaying(
+    title: string,
+    subtitle: string,
+    elapsed: number,
+    duration: number,
+  ): Promise<void>;
+  triggerPing(): Promise<void>;
   setChannelModulation(
     leftHz: number,
     leftDepth: number,
@@ -43,4 +55,19 @@ type DialedAudioNative = {
   setAsymmetricSMR(enabled: boolean, smrHz: number, depth: number): Promise<void>;
 };
 
-export default requireNativeModule<DialedAudioNative>('DialedAudio');
+const NativeModule = requireNativeModule<DialedAudioNative>('DialedAudio');
+
+type AudioEventsMap = {
+  onPhaseAdvanceRequest: (event: PhaseAdvanceEvent) => void;
+};
+
+const emitter = new EventEmitter<AudioEventsMap>(NativeModule as never);
+
+/** Subscribe to hardware headphone phase-advance gestures. */
+export function addPhaseAdvanceListener(
+  listener: (event: PhaseAdvanceEvent) => void,
+): EventSubscription {
+  return emitter.addListener('onPhaseAdvanceRequest', listener);
+}
+
+export default NativeModule;

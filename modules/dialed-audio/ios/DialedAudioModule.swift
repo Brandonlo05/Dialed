@@ -6,6 +6,44 @@ public class DialedAudioModule: Module {
   public func definition() -> ModuleDefinition {
     Name("DialedAudio")
 
+    // Hardware headphone gestures → phase advance requests
+    Events("onPhaseAdvanceRequest")
+
+    OnStartObserving {
+      RemoteCommandBridge.shared.onAdvanceRequest = { [weak self] source in
+        self?.sendEvent("onPhaseAdvanceRequest", ["source": source])
+      }
+    }
+
+    OnStopObserving {
+      RemoteCommandBridge.shared.onAdvanceRequest = nil
+    }
+
+    /// Arm headphone transport capture. While armed, Dialed owns the Now
+    /// Playing slot — headphone gestures advance training phases instead of
+    /// controlling the user's music app.
+    AsyncFunction("enableRemoteCommands") {
+      RemoteCommandBridge.shared.enable()
+    }
+
+    /// Full teardown — hands transport control back to iOS/the music app.
+    AsyncFunction("disableRemoteCommands") {
+      RemoteCommandBridge.shared.disable()
+    }
+
+    /// Keep the lock screen and the AVRCP channel (Sony XM5 et al.) live.
+    AsyncFunction("updateNowPlaying") {
+      (title: String, subtitle: String, elapsed: Double, duration: Double) in
+      RemoteCommandBridge.shared.updateNowPlaying(
+        title: title, subtitle: subtitle, elapsed: elapsed, duration: duration
+      )
+    }
+
+    /// 1200 Hz / 100 ms / −12 dBFS confirmation cue, synthesized in-render.
+    AsyncFunction("triggerPing") {
+      self.engine.triggerPing()
+    }
+
     AsyncFunction("startSession") { (config: [String: Any]) in
       let carrier    = config["carrierHz"]         as? Double ?? 200
       let beat       = config["beatHz"]            as? Double ?? 10

@@ -87,6 +87,12 @@ final class AudioEngineManager {
     var isoCarrierHz:  Double = 1000
     var isoRateHz:     Double = 40
     var isoDepth:      Float  = 1
+    // ── Transition ping ──
+    // A monotonically increasing counter, NOT a bool: the render thread
+    // compares it against its own last-seen value, so a trigger can never be
+    // missed or double-fired regardless of block boundaries, and no
+    // handshake / clear-flag write back to the writer is needed.
+    var pingSeq:       UInt32 = 0
   }
 
   // MARK: – Render-thread state (POD; owned by the IO thread after start)
@@ -115,6 +121,10 @@ final class AudioEngineManager {
     var beatCurrent: Double = 10
     var isoPhase:    Double = 0   // 1000 Hz carrier phase
     var isoGate:     Double = 0   // 40 Hz gate phase
+    // Transition ping (stack-resident POD; no allocation on trigger)
+    var pingSeen:      UInt32 = 0
+    var pingRemaining: Int    = 0
+    var pingPhase:     Double = 0
   }
 
   /// Simper low-shelf coefficients — computed once per block from the
@@ -292,6 +302,12 @@ final class AudioEngineManager {
     }
   }
 
+  /// Fire the transition ping. Increments a sequence counter the render
+  /// thread latches — cannot be missed or double-fired.
+  func triggerPing() {
+    mutateParams { $0.pingSeq &+= 1 }
+  }
+
   /// Isochronic pulse layer. `level` 0 disables the entire path.
   func setIsochronic(level: Float, carrierHz: Double, rateHz: Double, depth: Float) {
     mutateParams {
@@ -430,6 +446,18 @@ final class AudioEngineManager {
       let isoGInc  = p.isoRateHz / sampleRate          // 0…1 gate cycle per sample
       let isoEdge  = min(0.25, max(0.002, 0.002 * p.isoRateHz)) // edge as gate fraction
 
+      // ── Transition ping (1200 Hz, 100 ms, −12 dBFS) ──
+      // Latch a new trigger once per block. Arming is two integer writes;
+      // no allocation, no branching on the writer's behalf.
+      if p.pingSeq != state.pointee.pingSeen {
+        state.pointee.pingSeen = p.pingSeq
+        state.pointee.pingRemaining = Int(0.100 * sampleRate)
+        state.pointee.pingPhase = 0
+      }
+      let pingInc = 1200.0 * twoPi / sampleRate
+      let pingLen = Double(max(1, Int(0.100 * sampleRate)))
+      let pingAmp: Float = 0.251  // 10^(−12/20)
+
       let otGain  = p.overtoneGain
       let otInc2  = (p.carrierHz / 2) * twoPi / sampleRate
       let otInc4  = (p.carrierHz / 4) * twoPi / sampleRate
@@ -533,6 +561,21 @@ final class AudioEngineManager {
           if s.pointee.isoPhase >= twoPi { s.pointee.isoPhase -= twoPi }
           s.pointee.isoGate += isoGInc
           if s.pointee.isoGate >= 1 { s.pointee.isoGate -= 1 }
+        }
+
+        // Transition ping — raised-cosine window over the full 100 ms so it
+        // fades in and out cleanly instead of clicking at either end. Sits
+        // OUTSIDE the master volume so the cue stays audible when the user
+        // is running the engine quietly under loud music.
+        if s.pointee.pingRemaining > 0 {
+          let progress = 1.0 - Double(s.pointee.pingRemaining) / pingLen
+          let win = Float(0.5 * (1.0 - cos(twoPi * progress)))
+          let ping = Float(sin(s.pointee.pingPhase)) * win * pingAmp
+          left  += ping
+          right += ping
+          s.pointee.pingPhase += pingInc
+          if s.pointee.pingPhase >= twoPi { s.pointee.pingPhase -= twoPi }
+          s.pointee.pingRemaining -= 1
         }
 
         // True per-channel isolation: L and R streams never blend

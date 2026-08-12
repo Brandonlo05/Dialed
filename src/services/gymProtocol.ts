@@ -30,6 +30,32 @@ export type GymPhase = 'idle' | 'priming' | 'drive' | 'recovery';
 export const PRIMING_SEC = 120;
 export const REST_SEC = 180;
 
+/** Lock-screen / AVRCP titles shown on headphones and the lock screen. */
+export const PHASE_NOWPLAYING: Record<Exclude<GymPhase, 'idle'>, string> = {
+  priming:  'Phase I: Priming · 18–40 Hz',
+  drive:    'Phase II: Neuromotor Drive · 40 Hz',
+  recovery: 'Phase III: Recovery · 10–4 Hz',
+};
+
+/**
+ * Breath pacing per phase — [inhale, inhale-hold, exhale, empty-hold].
+ * Drive uses a short, even cycle that will not fight a working set; recovery
+ * weights the exhale, which is the parasympathetic-leaning pattern.
+ */
+export const PHASE_BREATH: Record<Exclude<GymPhase, 'idle'>, [number, number, number, number]> = {
+  priming:  [4, 2, 6, 0],
+  drive:    [2, 0, 3, 0],
+  recovery: [4, 2, 8, 2],
+};
+
+/** The next phase a hands-free gesture should advance to. */
+export function nextPhase(current: GymPhase): GymPhase {
+  if (current === 'priming') return 'drive';
+  if (current === 'drive') return 'recovery';
+  if (current === 'recovery') return 'drive';
+  return 'priming';
+}
+
 /** Nominal phase parameters (comments carry the physiological rationale). */
 export const PHASE_SPEC = {
   priming: { carrierHz: 300,   fromHz: 18, toHz: 40, seconds: PRIMING_SEC },
