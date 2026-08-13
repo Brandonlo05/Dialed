@@ -64,29 +64,29 @@ const CORE_MATRIX: Record<Bottleneck, Record<CoreArena, CoreEntry>> = {
   fog: {
     athlete: {
       title: 'Tactical Clarity',
-      mechanism: 'Bilateral 40 Hz Gamma sweeps visual-spatial networks for split-second reactions.',
+      mechanism: 'Bilateral 40 Hz pulses at full depth — the sharpest, most present texture in the app.',
     },
     student: {
       title: 'Lecture Fog Cleanser',
-      mechanism: '40 Hz ASSR clears sensory fatigue & sharpens focus for long study blocks.',
+      mechanism: 'Crisp 40 Hz pulses over pink noise, paced with brisk even breathing — built to feel alert, not sleepy.',
     },
     'creator-founder': {
       title: 'Deep Code Cleanse',
-      mechanism: '40 Hz Gamma clears sensory fatigue & sharpens analytical focus.',
+      mechanism: 'Crisp 40 Hz pulses over pink noise with brisk even breath pacing — a bright, forward texture for screen work.',
     },
   },
   sluggish: {
     athlete: {
       title: 'Ignition Sprint',
-      mechanism: '20 Hz High-Beta burst fires the alerting network — from flat to explosive in minutes.',
+      mechanism: 'A brisk 20 Hz pulse paired with long-inhale breathing — the rousing side of the breath, not the settling one.',
     },
     student: {
       title: 'Morning Launch Protocol',
-      mechanism: '20 Hz High-Beta lifts alertness to break procrastination inertia.',
+      mechanism: 'A brisk 20 Hz pulse with long-inhale pacing to get you moving from a standing start.',
     },
     'creator-founder': {
       title: 'Cold-Start Override',
-      mechanism: '20 Hz High-Beta for a fast cold start — no caffeine crash.',
+      mechanism: 'A brisk 20 Hz pulse with long-inhale pacing for a fast cold start — and nothing to crash off.',
     },
   },
   burnout: {

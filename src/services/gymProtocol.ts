@@ -18,6 +18,7 @@
 
 import {
   setBeatGlide,
+  setBreathEnvelope,
   setDuckExternalAudio,
   setIsochronic,
   setVolume,
@@ -84,6 +85,7 @@ export async function enterPhase(phase: GymPhase): Promise<void> {
     void setIsochronic(0);
     void setDuckExternalAudio(false);
     void setVolume(0.26);
+    void setBreathEnvelope(PHASE_BREATH.priming);
     return;
   }
 
@@ -96,6 +98,9 @@ export async function enterPhase(phase: GymPhase): Promise<void> {
     void setIsochronic(0.35, s.isoCarrierHz, s.isoRateHz, 1);
     void setDuckExternalAudio(true); // pull background media down under the set
     void setVolume(0.32);
+    // Shallow swell under a working set — enough to pace, never enough to
+    // make the pulse duck out while you are mid-rep.
+    void setBreathEnvelope(PHASE_BREATH.drive, 0.18);
     return;
   }
 
@@ -107,11 +112,14 @@ export async function enterPhase(phase: GymPhase): Promise<void> {
   void setIsochronic(0);
   void setDuckExternalAudio(false); // hand the music back for the rest period
   void setVolume(0.24);
+  // Deepest swell of the three — rest is where the breath does the work.
+  void setBreathEnvelope(PHASE_BREATH.recovery, 0.42);
 }
 
 /** Full teardown — always safe, idempotent. */
 export async function stopGym(): Promise<void> {
   void setIsochronic(0);
+  void setBreathEnvelope([0, 0, 0, 0], 0);
   void setBeatGlide(10, 0, 0);
   void setDuckExternalAudio(false);
   await stopAudioSession();

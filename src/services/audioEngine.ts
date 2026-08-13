@@ -191,5 +191,21 @@ export async function triggerPing(): Promise<void> {
   await DialedAudioModule.triggerPing();
 }
 
+/**
+ * Lock the master swell to a breath cycle so the audio physically rises on
+ * the inhale and recedes on the exhale, guiding respiration rather than
+ * merely accompanying it. Pass the four stage durations in seconds.
+ * `depth` 0 disables; the native side caps it so it never fades to silence.
+ */
+export async function setBreathEnvelope(
+  cycle: [number, number, number, number],
+  depth = 0.35,
+): Promise<void> {
+  if (Platform.OS !== 'ios') return;
+  await DialedAudioModule.setBreathEnvelope(
+    cycle[0], cycle[1], cycle[2], cycle[3], Math.max(0, Math.min(0.8, depth)),
+  );
+}
+
 /** Subscribe to hardware headphone phase-advance gestures. */
 export { addPhaseAdvanceListener };

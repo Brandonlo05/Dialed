@@ -38,9 +38,9 @@ export type ProgramUx = {
 export const PRESET_UX_DATA: Record<ProgramId, ProgramUx> = {
   burnout: {
     challenge:
-      'You have been grinding for hours under blue light, your heart is racing, your hands are clammy, and your thoughts are looping. Your brain is still spinning at high-beta speeds, leaving you locked in exhausting sympathetic overdrive.',
+      'You have been grinding for hours under blue light, your heart is racing, your hands are clammy, and your thoughts are looping. You are exhausted but cannot switch off.',
     science:
-      "This preset acts as a step-by-step decelerator for your brain's electrical pacing, capturing your hyper-aroused neural state at 18 Hz and systematically pulling it down to 2 Hz in a piece-wise linear glide.",
+      "A 600-second piece-wise glide that walks the acoustic pulse from 18 Hz down to 2 Hz, paired with an extended-exhale breath cycle (4-2-8-2). The audio swells on each inhale and recedes on each exhale, so the sound sets the pace and the long exhale does the settling.",
     afterState:
       'A heavy, warm somatic sensation. Your breathing slows down, physical tension in your chest and jaw melts away, and your mind settles into a quiet, calm state—leaving you mentally refreshed.',
     themeFrom: '#FF3366', // Sympathetic Neon Scarlet
@@ -53,7 +53,7 @@ export const PRESET_UX_DATA: Record<ProgramId, ProgramUx> = {
     challenge:
       "Experiencing the '3 PM screen coma' after staring at code or text for six hours. Your eyes are heavy, your temples are throbbing with fatigue, and reading a single line of text feels like wading through wet cement.",
     science:
-      'Delivers a 400 Hz acoustic carrier wave overlaid with hardcoded 40 Hz Gamma isochronic pulses over unmasked pink noise to drive high-frequency synchronization across your visual and parietal networks.',
+      'A 400 Hz carrier under crisp 40 Hz isochronic pulses and an unmasked pink-noise floor — an alert, high-contrast texture. Paired with brisk even breathing (4-4) that keeps you clear without winding you down.',
     afterState:
       'Crisp, sharp mental clarity. It feels like stepping out of a dark room into cool morning air—your eyes focus instantly, your reaction times sharpen, and the heavy mental fog is gone.',
     themeFrom: '#39FF14', // Matrix Green
@@ -66,7 +66,7 @@ export const PRESET_UX_DATA: Record<ProgramId, ProgramUx> = {
     challenge:
       'Sitting in the lecture hall waiting for exam papers to be distributed. Your heart is pounding, you are tapping your foot uncontrollably, and you feel a wave of panic that threatens to block your memory.',
     science:
-      'Uses asymmetric multi-channel isolation. The left ear receives a 13 Hz SMR envelope associated with physical stillness, while the right ear receives a coherent 10 Hz Alpha wave associated with calm, settled attention.',
+      'True per-ear asymmetry: a 13 Hz amplitude envelope in the left ear, a 10 Hz envelope in the right, so each side carries a distinct rhythm. Paired with 4-7-8 breathing — a long hold and a longer exhale, the pattern people reach for when nerves are already firing.',
     afterState:
       'A state of relaxed alertness and physical stillness. Your hands stop shaking, your breathing patterns stabilize, and your mind feels steady, clear, and confident.',
     themeFrom: '#9D00FF', // Electric Amethyst
@@ -77,11 +77,11 @@ export const PRESET_UX_DATA: Record<ProgramId, ProgramUx> = {
   },
   'golden-432': {
     challenge:
-      'Standard concert pitch (A4 = 440 Hz) dominates every stream you hear. This is not a pitch-bend of 440 Hz content — it is a deterministic, phase-accumulated 432.0 Hz fundamental, synthesized from first principles.',
+      'Almost everything you stream is tuned to A4 = 440 Hz. If you have ever preferred how older or alternately-tuned recordings sit, this is that — generated exactly, not pitch-shifted after the fact.',
     science:
-      'Natural harmonic entrainment at 432 Hz. A mathematically exact 432.0 Hz carrier (−31.77 cents below concert pitch) rendered identically in both ears, layered with a Pythagorean overtone stack at 108, 216, and 864 Hz in natural-tuning ratios.',
+      'An alternative concert tuning: a mathematically exact 432.0 Hz fundamental (−31.77 cents from standard A440), generated from first principles rather than pitch-shifted, with a Pythagorean overtone stack at 108, 216 and 864 Hz. Some listeners simply prefer how this tuning sits; we make no claim beyond that. Paired with slow resonant 6-6 breathing.',
     afterState:
-      'Cellular Resonance & Deep Focus. A warm, rounded, harmonically stable field — the stack breathes with the fundamental instead of beating against it, settling attention into a still, sustained hold.',
+      'A warm, rounded, harmonically stable sound. The overtones sit in whole-number ratios with the fundamental rather than beating against it, which is why it reads as calm rather than busy.',
     themeFrom: '#FFD700', // Polished Gold
     themeTo: '#0B0C10',   // Deep Obsidian
     glow: '#FFD700',
@@ -92,7 +92,7 @@ export const PRESET_UX_DATA: Record<ProgramId, ProgramUx> = {
     challenge:
       "You have a four-hour study or work session ahead of you. You don't need intense, frantic pressure, but you need to sit down, ignore surrounding distractions, and maintain steady, comfortable progress.",
     science:
-      'This mode establishes a stable, continuous 10 Hz Alpha wave bridge across your cortex. This classic state of relaxed alertness suppresses sensory distractions and acts as a gateway to cognitive endurance.',
+      'A steady 10 Hz acoustic pulse on a 220 Hz carrier — even, unobtrusive, built to disappear into the background. Paired with coherent 5-5 breathing at six breaths a minute, the pacing most consistently linked with steady heart-rate variability.',
     afterState:
       'Steady, friction-free productivity. Time passes quickly without you constantly checking the clock, and you make progress through your task list with minimal mental strain.',
     themeFrom: '#8A2BE2', // Lavender Violet
@@ -105,7 +105,7 @@ export const PRESET_UX_DATA: Record<ProgramId, ProgramUx> = {
     challenge:
       'It is 11 PM, you have a hard deadline in two hours, and you still have hundreds of lines of complex code to write, debug, and push. You need absolute, hyper-alert situational processing right now.',
     science:
-      "This mode entrains your cortical networks to a fixed 40 Hz Gamma wave—the brain's highest information-processing band, coordinating rapid, multi-regional communication.",
+      "A fixed 40 Hz pulse on a 200 Hz carrier — the densest, most present texture in the app. Paired with sustained 5-2-5 breathing, an even ratio with a brief hold that is comfortable to keep up for hours.",
     afterState:
       'Laser-guided cognitive tunnel vision. Your workspace feels fully immersive, environmental noise disappears, and you process complex problems at peak speed.',
     themeFrom: '#00F0FF', // High-Voltage Cyan
@@ -118,7 +118,7 @@ export const PRESET_UX_DATA: Record<ProgramId, ProgramUx> = {
     challenge:
       "You woke up groggy, your second cup of coffee isn't hitting, and you are staring blankly at your screen with zero energy or motivation to start your day.",
     science:
-      'Delivers a high-intensity 20 Hz High-Beta frequency burst to your auditory pathways — a band associated with active, alert processing — for a fast lift without a caffeine crash.',
+      'A brisk 20 Hz pulse on a 240 Hz carrier — bright and forward. Paired with activating 6-2 breathing, where the inhale runs three times the exhale; longer inhales are the side of the breath associated with rousing rather than settling.',
     afterState:
       'Immediate mental acceleration. You feel a surge of cognitive energy, a sharp urge to take action, and a complete clearance of morning lethargy.',
     themeFrom: '#FF007F', // Hot Cyberpunk Pink
@@ -131,7 +131,7 @@ export const PRESET_UX_DATA: Record<ProgramId, ProgramUx> = {
     challenge:
       'You are in a high-pressure, make-or-break situation—a competitive gaming match, a startup pitch, or a high-consequence play. Your thoughts are starting to race, and anxiety is setting in.',
     science:
-      'This preset targets the precise 7 Hz Theta-Alpha crossover boundary, keeping your brainwaves positioned between calm visualization and relaxed awareness to keep physical reflexes rapid while silencing mental chatter.',
+      'A slow 7 Hz pulse on a 180 Hz carrier, sitting at the theta-alpha boundary. Paired with box breathing (4-4-4-4) — equal on all four sides, the pattern used in high-pressure training precisely because it is easy to hold when everything else is moving fast.',
     afterState:
       'A state of effortless, relaxed control. Everything around you seems to move in slow motion, your motor responses are fast and automatic, and you execute complex tasks with complete confidence.',
     themeFrom: '#0041C2', // Deep Ocean Blue

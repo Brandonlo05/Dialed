@@ -30,7 +30,12 @@ import { FOCUS_MODES, STAT_BOXES, type FocusModeId } from '../../src/constants/m
 import { PRESET_UX_DATA, type ProgramId } from '../../src/constants/presetUx';
 import { useProfileRefresh } from '../../src/hooks/useProfileRefresh';
 import { useSessionClock } from '../../src/hooks/useSessionClock';
-import { setVolume, startAudioSession, stopAudioSession } from '../../src/services/audioEngine';
+import {
+  setBreathEnvelope,
+  setVolume,
+  startAudioSession,
+  stopAudioSession,
+} from '../../src/services/audioEngine';
 import {
   NEURO_PRESETS,
   startNeuroPreset,
@@ -133,6 +138,8 @@ export default function DashboardScreen() {
         smrDepth:          cal.smrDepth,
       });
       void setVolume(cal.volume);
+      // Audio breathes with the on-screen pacer for this program
+      void setBreathEnvelope(breathForProgram(modeId).cycle);
 
       // startAudioSession resolves only once the native engine is running
       if (cal.asymmetricSMR) celebrate();
@@ -154,6 +161,8 @@ export default function DashboardScreen() {
         onBurnoutTick: setBurnoutTick,
         onComplete: () => { void finishRef.current(); },
       });
+      // Audio breathes with the on-screen pacer for this preset
+      void setBreathEnvelope(breathForProgram(presetId).cycle);
 
       if (!isPlaying) sessionStartRef.current = Date.now();
       setIsPlaying(true);

@@ -87,6 +87,17 @@ final class AudioEngineManager {
     var isoCarrierHz:  Double = 1000
     var isoRateHz:     Double = 40
     var isoDepth:      Float  = 1
+    // ── Breath-synchronised master envelope ──
+    // The four pacer stages in seconds. The engine swells on inhale and
+    // recedes on exhale so the SOUND leads the breath instead of merely
+    // sitting alongside it. Applied to both channels equally, after the
+    // per-channel AM, so the interaural difference is never disturbed.
+    // Depth 0 bypasses the whole path.
+    var breathIn:    Float = 0
+    var breathHold:  Float = 0
+    var breathOut:   Float = 0
+    var breathRest:  Float = 0
+    var breathDepth: Float = 0
     // ── Transition ping ──
     // A monotonically increasing counter, NOT a bool: the render thread
     // compares it against its own last-seen value, so a trigger can never be
@@ -121,6 +132,8 @@ final class AudioEngineManager {
     var beatCurrent: Double = 10
     var isoPhase:    Double = 0   // 1000 Hz carrier phase
     var isoGate:     Double = 0   // 40 Hz gate phase
+    /// Seconds elapsed into the current breath cycle (render-thread only).
+    var breathPos: Double = 0
     // Transition ping (stack-resident POD; no allocation on trigger)
     var pingSeen:      UInt32 = 0
     var pingRemaining: Int    = 0
@@ -302,6 +315,23 @@ final class AudioEngineManager {
     }
   }
 
+  /// Lock the master swell to the breath pacer's cycle. Passing the four
+  /// stage durations (not a rate) is what lets the audio track an asymmetric
+  /// pattern like 4-2-8-2 exactly. Depth 0 disables the path; the phase is
+  /// reset so the swell starts on an inhale in step with the on-screen ring.
+  func setBreathEnvelope(
+    inhale: Float, hold: Float, exhale: Float, rest: Float, depth: Float
+  ) {
+    mutateParams {
+      $0.breathIn    = max(0, inhale)
+      $0.breathHold  = max(0, hold)
+      $0.breathOut   = max(0, exhale)
+      $0.breathRest  = max(0, rest)
+      $0.breathDepth = max(0, min(0.8, depth)) // capped — never fades to silence
+    }
+    statePtr.pointee.breathPos = 0
+  }
+
   /// Fire the transition ping. Increments a sequence counter the render
   /// thread latches — cannot be missed or double-fired.
   func triggerPing() {
@@ -454,6 +484,14 @@ final class AudioEngineManager {
         state.pointee.pingRemaining = Int(0.100 * sampleRate)
         state.pointee.pingPhase = 0
       }
+      // ── Breath envelope constants (block level) ──
+      let brDepth = p.breathDepth
+      let brTotal = Double(p.breathIn + p.breathHold + p.breathOut + p.breathRest)
+      let brInc   = brTotal > 0 ? 1.0 / sampleRate : 0.0
+      let brIn    = Double(p.breathIn)
+      let brHoldE = brIn + Double(p.breathHold)
+      let brOutE  = brHoldE + Double(p.breathOut)
+
       let pingInc = 1200.0 * twoPi / sampleRate
       let pingLen = Double(max(1, Int(0.100 * sampleRate)))
       let pingAmp: Float = 0.251  // 10^(−12/20)
@@ -578,9 +616,33 @@ final class AudioEngineManager {
           s.pointee.pingRemaining -= 1
         }
 
+        // ── Breath-synchronised swell ──
+        // Rises through the inhale, holds at the top, falls through the
+        // exhale, rests at the floor — the exact shape the pacer draws, so
+        // the sound and the ring move together. Raised-cosine edges keep it
+        // click-free; depth sets how far it recedes (never to silence).
+        var brEnv: Float = 1
+        if brDepth > 0 && brTotal > 0 {
+          let pos = s.pointee.breathPos
+          var shape: Double
+          if pos < brIn {
+            shape = brIn > 0 ? 0.5 * (1.0 - cos(Double.pi * (pos / brIn))) : 1.0
+          } else if pos < brHoldE {
+            shape = 1.0
+          } else if pos < brOutE {
+            let u = (pos - brHoldE) / max(0.0001, brOutE - brHoldE)
+            shape = 0.5 * (1.0 + cos(Double.pi * u))
+          } else {
+            shape = 0.0
+          }
+          brEnv = (1.0 - brDepth) + brDepth * Float(shape)
+          s.pointee.breathPos += brInc
+          if s.pointee.breathPos >= brTotal { s.pointee.breathPos -= brTotal }
+        }
+
         // True per-channel isolation: L and R streams never blend
-        leftPtr[i]  = left  * p.volume * s.pointee.currentGain
-        rightPtr[i] = right * p.volume * s.pointee.currentGain
+        leftPtr[i]  = left  * p.volume * s.pointee.currentGain * brEnv
+        rightPtr[i] = right * p.volume * s.pointee.currentGain * brEnv
 
         s.pointee.phaseL += phaseIncL
         s.pointee.phaseR += phaseIncR

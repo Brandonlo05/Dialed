@@ -46,6 +46,13 @@ type DialedAudioNative = {
     duration: number,
   ): Promise<void>;
   triggerPing(): Promise<void>;
+  setBreathEnvelope(
+    inhale: number,
+    hold: number,
+    exhale: number,
+    rest: number,
+    depth: number,
+  ): Promise<void>;
   setChannelModulation(
     leftHz: number,
     leftDepth: number,

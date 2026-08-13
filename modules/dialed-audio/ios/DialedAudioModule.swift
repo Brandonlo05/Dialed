@@ -39,6 +39,15 @@ public class DialedAudioModule: Module {
       )
     }
 
+    /// Lock the master swell to the breath pacer cycle (depth 0 = off).
+    AsyncFunction("setBreathEnvelope") {
+      (inhale: Double, hold: Double, exhale: Double, rest: Double, depth: Double) in
+      self.engine.setBreathEnvelope(
+        inhale: Float(inhale), hold: Float(hold),
+        exhale: Float(exhale), rest: Float(rest), depth: Float(depth)
+      )
+    }
+
     /// 1200 Hz / 100 ms / −12 dBFS confirmation cue, synthesized in-render.
     AsyncFunction("triggerPing") {
       self.engine.triggerPing()
