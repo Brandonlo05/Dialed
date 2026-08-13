@@ -19,6 +19,7 @@ import { useEffect, useRef, useState } from 'react';
 import { PanResponder, Pressable, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
+import { breathForFrequency } from '../../constants/breathwork';
 import { NEON } from '../../constants/theme';
 import { setBeatFrequency, startAudioSession, stopAudioSession } from '../../services/audioEngine';
 import { notch, tapConfirm, tapSelect, tick } from '../../services/haptics';
@@ -291,6 +292,10 @@ export function ManualTuner({ onBeforeStart, externalSessionActive }: ManualTune
 
           <Text className="mt-3 text-center font-mono text-[10px] text-dialed-muted">
             L {TUNER_CARRIER} Hz · R {TUNER_CARRIER} + {hz.toFixed(1)} Hz · binaural Δ {hz.toFixed(1)} Hz
+          </Text>
+          {/* Breath pairing follows the band you tune into */}
+          <Text className="mt-1.5 text-center font-mono text-[10px]" style={{ color: band.color }}>
+            BREATHE · {breathForFrequency(hz).name.toUpperCase()}
           </Text>
         </Animated.View>
       )}

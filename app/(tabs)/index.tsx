@@ -25,6 +25,7 @@ import {
 } from '../../src/components/ProtocolLibrary';
 import { SessionSummary } from '../../src/components/SessionSummary';
 import { StatBox } from '../../src/components/ui/StatBox';
+import { breathForProgram } from '../../src/constants/breathwork';
 import { FOCUS_MODES, STAT_BOXES, type FocusModeId } from '../../src/constants/modes';
 import { PRESET_UX_DATA, type ProgramId } from '../../src/constants/presetUx';
 import { useProfileRefresh } from '../../src/hooks/useProfileRefresh';
@@ -268,6 +269,7 @@ export default function DashboardScreen() {
           overtones={activePreset === 'golden-432'}
           isPlaying={isPlaying}
           elapsedSec={elapsedSec}
+          breathPattern={activeProgramId ? breathForProgram(activeProgramId) : null}
           statusLine={heroStatusLine}
           onEngage={() => { tapSelect(); setSheetProgram(tailored.programId); }}
           onStop={() => { void finishSession(); }}

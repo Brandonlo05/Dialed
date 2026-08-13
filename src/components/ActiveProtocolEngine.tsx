@@ -32,8 +32,10 @@ import Animated, {
 } from 'react-native-reanimated';
 import Svg, { Circle, Line, Path } from 'react-native-svg';
 
+import type { BreathPattern } from '../constants/breathwork';
 import { milestoneStage, NEON } from '../constants/theme';
 import { XP_PER_MINUTE } from '../services/gamification';
+import { BreathPacer } from './neuro-visualizers/BreathPacer';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -159,6 +161,8 @@ export type ActiveProtocolEngineProps = {
   overtones?: boolean;
   isPlaying: boolean;
   elapsedSec: number;
+  /** Respiratory pattern paired with this program (shown while running). */
+  breathPattern?: BreathPattern | null;
   /** Optional status line shown while engaged (e.g. Burnout phase). */
   statusLine?: string | null;
   onEngage: () => void;
@@ -174,6 +178,7 @@ export function ActiveProtocolEngine({
   overtones = false,
   isPlaying,
   elapsedSec,
+  breathPattern = null,
   statusLine,
   onEngage,
   onStop,
@@ -300,18 +305,59 @@ export function ActiveProtocolEngine({
           )}
         </View>
 
-        {/* ── Live waveform ────────────────────────────────────────────── */}
-        <View className="mt-3">
-          <ProtocolWaveform
-            carrierHz={carrierHz}
-            modHz={targetHz}
-            overtones={overtones}
-            color={isPlaying ? ringColor : accent}
-          />
-        </View>
+        {/* ── Waveform (standby, and while running without a pattern) ──── */}
+        {!(isPlaying && breathPattern) && (
+          <View className="mt-3">
+            <ProtocolWaveform
+              carrierHz={carrierHz}
+              modHz={targetHz}
+              overtones={overtones}
+              color={isPlaying ? ringColor : accent}
+            />
+          </View>
+        )}
 
-        {/* ── Engaged: milestone sweep ring ─────────────────────────────── */}
-        {isPlaying && (
+        {/* ── Running: ONE focal circle — the breath pacer — plus a compact
+             clock row. Stacking the pacer on top of the milestone ring put
+             two large circles in one card and read as noise. ──────────── */}
+        {isPlaying && breathPattern && (
+          <View className="mt-2 items-center">
+            <BreathPacer cycle={breathPattern.cycle} color={ringColor} />
+            <Text
+              className="mt-1 font-mono text-[10px] tracking-[1.5px]"
+              style={{ color: NEON.muted }}
+            >
+              {breathPattern.name.toUpperCase()}
+            </Text>
+            <View className="mt-3 flex-row items-center" style={{ gap: 10 }}>
+              <Text
+                allowFontScaling={false}
+                className="font-black tracking-tight text-dialed-stat"
+                style={{ fontSize: 28, fontVariant: ['tabular-nums'] }}
+              >
+                {fmtClock(elapsedSec)}
+              </Text>
+              <View
+                className="rounded-full px-2.5 py-1"
+                style={{
+                  backgroundColor: `${ringColor}16`,
+                  borderWidth: 1,
+                  borderColor: `${ringColor}40`,
+                }}
+              >
+                <Text
+                  className="text-[9.5px] font-bold uppercase tracking-[2px]"
+                  style={{ color: ringColor }}
+                >
+                  {stage.label}
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* ── Engaged without a breath pattern: milestone sweep ring ────── */}
+        {isPlaying && !breathPattern && (
           <View className="mt-1 items-center">
             <Animated.View
               style={[

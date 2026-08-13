@@ -21,6 +21,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+import { breathForProgram } from '../constants/breathwork';
 import { PRESET_UX_DATA, type ProgramId } from '../constants/presetUx';
 import { NEON } from '../constants/theme';
 import { TrajectoryGraph } from './neuro-visualizers/TrajectoryGraph';
@@ -219,6 +220,34 @@ export function CommandSheet({ program, onEngage, onClose }: CommandSheetProps) 
             >
               {hz.toFixed(1)} Hz
               {program.id === 'burnout' ? '  →  2.0 Hz' : ''}
+            </Text>
+          </View>
+
+          {/* BREATH PAIRING — the pattern this program is designed around */}
+          <SectionLabel text="Breathe With It" color={ux.glow} />
+          <View
+            className="rounded-2xl px-4 py-3.5"
+            style={{
+              backgroundColor: 'rgba(255,255,255,0.03)',
+              borderWidth: 1,
+              borderColor: '#1A1A1E',
+            }}
+          >
+            <View className="flex-row items-center justify-between">
+              <Text className="text-[13px] font-bold text-dialed-stat">
+                {breathForProgram(program.id).name}
+              </Text>
+              <Text
+                className="font-mono text-[10px]"
+                style={{ color: ux.glow, fontVariant: ['tabular-nums'] }}
+              >
+                {breathForProgram(program.id)
+                  .cycle.filter((n) => n > 0)
+                  .join(' · ')}
+              </Text>
+            </View>
+            <Text className="mt-1 text-[12px] leading-[18px] text-dialed-muted">
+              {breathForProgram(program.id).summary}
             </Text>
           </View>
 
