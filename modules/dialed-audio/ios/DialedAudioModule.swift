@@ -39,6 +39,21 @@ public class DialedAudioModule: Module {
       )
     }
 
+    // ── Eyes-closed somatic breath haptics ──
+    AsyncFunction("startBreathHaptics") {
+      BreathHaptics.shared.start()
+    }
+    AsyncFunction("stopBreathHaptics") {
+      BreathHaptics.shared.stop()
+    }
+    /// stage: 0 inhale · 1 hold · 2 exhale · 3 rest
+    AsyncFunction("playBreathStage") { (stage: Int, duration: Double, sharpness: Double) in
+      BreathHaptics.shared.playStage(stage, duration: duration, sharpness: Float(sharpness))
+    }
+    Function("breathHapticsSupported") { () -> Bool in
+      BreathHaptics.shared.isSupported
+    }
+
     /// Lock the master swell to the breath pacer cycle (depth 0 = off).
     AsyncFunction("setBreathEnvelope") {
       (inhale: Double, hold: Double, exhale: Double, rest: Double, depth: Double) in

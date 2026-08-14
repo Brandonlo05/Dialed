@@ -322,7 +322,7 @@ export function ActiveProtocolEngine({
              two large circles in one card and read as noise. ──────────── */}
         {isPlaying && breathPattern && (
           <View className="mt-2 items-center">
-            <BreathPacer cycle={breathPattern.cycle} color={ringColor} />
+            <BreathPacer cycle={breathPattern.cycle} color={ringColor} carrierHz={carrierHz} />
             <Text
               className="mt-1 font-mono text-[10px] tracking-[1.5px]"
               style={{ color: NEON.muted }}

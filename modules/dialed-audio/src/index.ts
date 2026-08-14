@@ -53,6 +53,10 @@ type DialedAudioNative = {
     rest: number,
     depth: number,
   ): Promise<void>;
+  startBreathHaptics(): Promise<void>;
+  stopBreathHaptics(): Promise<void>;
+  playBreathStage(stage: number, duration: number, sharpness: number): Promise<void>;
+  breathHapticsSupported(): boolean;
   setChannelModulation(
     leftHz: number,
     leftDepth: number,

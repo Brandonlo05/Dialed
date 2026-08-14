@@ -20,12 +20,17 @@ import { StyleSheet, TextInput, View } from 'react-native';
 import Animated, {
   cancelAnimation,
   Easing,
+  runOnJS,
   useAnimatedProps,
+  useDerivedValue,
+  useAnimatedReaction,
   useSharedValue,
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
 import Svg, { Circle } from 'react-native-svg';
+
+import { playBreathStage, startBreathHaptics, stopBreathHaptics } from '../../services/haptics';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 const AnimatedTextInput = Animated.createAnimatedComponent(TextInput);
@@ -43,9 +48,19 @@ export type BreathPacerProps = {
   color: string;
   /** Pause the pacer without unmounting. */
   paused?: boolean;
+  /** Active carrier — mapped to tactile sharpness for the haptic cue. */
+  carrierHz?: number;
+  /** Drive CoreHaptics so the cycle can be followed with eyes closed. */
+  haptics?: boolean;
 };
 
-export function BreathPacer({ cycle, color, paused = false }: BreathPacerProps) {
+export function BreathPacer({
+  cycle,
+  color,
+  paused = false,
+  carrierHz = 200,
+  haptics = true,
+}: BreathPacerProps) {
   // Single monotonic clock in seconds; every derived value is a pure function
   // of it, so there is no per-stage timer to drift or leak.
   const t = useSharedValue(0);
@@ -113,6 +128,43 @@ export function BreathPacer({ cycle, color, paused = false }: BreathPacerProps) 
     const n = Math.max(1, Math.ceil(remaining));
     return { text: n < 10 ? `0${n}` : `${n}` } as never;
   });
+
+  // ── Somatic haptics ───────────────────────────────────────────────────────
+  // The stage index is derived on the UI thread; useAnimatedReaction fires the
+  // native pattern ONLY when that index actually changes. A per-frame bridge
+  // crossing here would be ~60 calls/sec into CoreHaptics — this is 4 per
+  // cycle. Rest (stage 3) is deliberately silent, so the floor of the breath
+  // is unmistakable by touch alone.
+  const stageIndex = useDerivedValue(() => {
+    'worklet';
+    const c = cycle;
+    let x = t.value % total;
+    let stage = 0;
+    for (let i = 0; i < 4; i++) {
+      if (c[i] <= 0) continue;
+      if (x < c[i]) { stage = i; break; }
+      x -= c[i];
+      stage = i;
+    }
+    return stage;
+  }, [cycle, total]);
+
+  useEffect(() => {
+    if (!haptics || paused) return;
+    startBreathHaptics();
+    return () => stopBreathHaptics();
+  }, [haptics, paused]);
+
+  useAnimatedReaction(
+    () => stageIndex.value,
+    (next, prev) => {
+      'worklet';
+      if (prev === null || next === prev) return;
+      if (!haptics || paused) return;
+      runOnJS(playBreathStage)(next, cycle[next], carrierHz);
+    },
+    [cycle, carrierHz, haptics, paused],
+  );
 
   const labelProps = useAnimatedProps(() => {
     'worklet';

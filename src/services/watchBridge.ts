@@ -1,6 +1,8 @@
 import type { EventSubscription } from 'expo-modules-core';
 import { Platform } from 'react-native';
 
+import { pushBiometric } from './adaptiveAudio';
+
 import {
   activateWatchSession,
   addBiometricListener,
@@ -117,6 +119,28 @@ export function stopWatchBridge(): void {
  * Subscribe to every arriving biometric packet.
  * Returns an unsubscribe function — call it in a cleanup effect.
  */
+/**
+ * Route incoming watch packets straight into the adaptive audio layer.
+ * Call once alongside startWatchBridge(); returns an unsubscribe.
+ *
+ * RMSSD is computed from the RR-interval ring buffer rather than trusting a
+ * single packet — successive-difference measures are meaningless on one
+ * sample and very noisy on few.
+ */
+export function connectWatchToAdaptiveAudio(): () => void {
+  return addBiometricDataListener((bpm) => {
+    const rr = rrBuffer.latest(64);
+    if (rr.length < 8) return; // not enough intervals for a stable RMSSD
+    let sumSq = 0;
+    for (let i = 1; i < rr.length; i++) {
+      const d = rr[i] - rr[i - 1];
+      sumSq += d * d;
+    }
+    const rmssd = Math.sqrt(sumSq / (rr.length - 1));
+    pushBiometric({ bpm, rmssd, source: 'watch' });
+  });
+}
+
 export function addBiometricDataListener(listener: BiometricListener): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);

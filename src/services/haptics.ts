@@ -17,7 +17,50 @@
  * paced by human interaction and each one carries meaning.
  */
 
+import { Platform } from 'react-native';
+
 import * as Haptics from 'expo-haptics';
+
+import DialedAudioModule from '../../modules/dialed-audio/src';
+import { hasFeature } from './subscription';
+
+// ── Eyes-closed somatic breath haptics (native CoreHaptics) ─────────────────
+
+/** True when the device has a Taptic Engine and the feature is entitled. */
+export function breathHapticsAvailable(): boolean {
+  if (Platform.OS !== 'ios') return false;
+  if (!hasFeature('breath-haptics')) return false;
+  try {
+    return DialedAudioModule.breathHapticsSupported();
+  } catch {
+    return false;
+  }
+}
+
+/** Warm the CoreHaptics engine before a session so the first cue is on time. */
+export function startBreathHaptics(): void {
+  if (!breathHapticsAvailable()) return;
+  void DialedAudioModule.startBreathHaptics().catch(() => {});
+}
+
+export function stopBreathHaptics(): void {
+  if (Platform.OS !== 'ios') return;
+  void DialedAudioModule.stopBreathHaptics().catch(() => {});
+}
+
+/**
+ * Play one respiratory stage as touch.
+ * @param stage 0 inhale · 1 hold · 2 exhale · 3 rest (rest is silent)
+ * @param duration stage length in seconds
+ * @param carrierHz active carrier — mapped to tactile sharpness, NOT played
+ *        as a frequency (the Taptic Engine cannot be driven at audio rates).
+ */
+export function playBreathStage(stage: number, duration: number, carrierHz = 200): void {
+  if (!breathHapticsAvailable()) return;
+  // 130–450 Hz carriers map onto 0…1 sharpness; higher carriers feel crisper.
+  const sharpness = Math.max(0, Math.min(1, (carrierHz - 130) / 320));
+  void DialedAudioModule.playBreathStage(stage, duration, sharpness).catch(() => {});
+}
 
 // ── Leading-edge throttle ────────────────────────────────────────────────────
 

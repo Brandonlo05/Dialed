@@ -257,6 +257,7 @@ export function GymCockpit() {
                 <BreathPacer
                   cycle={PHASE_BREATH[phase as Exclude<GymPhase, 'idle'>]}
                   color={color}
+                  carrierHz={carrier}
                 />
               ) : (
                 <PhaseVisualizer phase={phase} hz={10} color={IDLE_COLOR} />
