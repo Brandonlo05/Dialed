@@ -168,16 +168,20 @@ export function VolumeSlider() {
           className="mt-2 justify-center"
           style={{ height: 36 }}
         >
-          <View className="h-1 rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }} />
+          <View
+            className="rounded-full"
+            style={{ height: 6, backgroundColor: 'rgba(255,255,255,0.07)' }}
+          />
           {/* 70% threshold marker etched into the rail */}
           <View
             className="absolute h-2.5 w-px"
-            style={{ left: `${SAFETY_THRESHOLD * 100}%`, backgroundColor: 'rgba(255,255,255,0.28)' }}
+            style={{ left: `${SAFETY_THRESHOLD * 100}%`, backgroundColor: 'rgba(255,255,255,0.42)', height: 14, width: 1.5 }}
           />
           <Animated.View
-            className="absolute h-1 rounded-full"
+            className="absolute rounded-full"
             style={[
               {
+                height: 6,
                 width: `${ratio * 100}%`,
                 shadowOpacity: 0.8,
                 shadowRadius: 6,
@@ -187,15 +191,17 @@ export function VolumeSlider() {
             ]}
           />
           <Animated.View
-            className="absolute h-4 w-4 rounded-full"
+            className="absolute rounded-full"
             style={[
               {
+                width: 20,
+                height: 20,
                 left: `${ratio * 100}%`,
-                marginLeft: -8,
+                marginLeft: -10,
                 backgroundColor: '#0a0a0f',
-                borderWidth: 2,
-                shadowOpacity: 0.9,
-                shadowRadius: 8,
+                borderWidth: 2.5,
+                shadowOpacity: 1,
+                shadowRadius: 12,
                 shadowOffset: { width: 0, height: 0 },
                 elevation: 8,
               },

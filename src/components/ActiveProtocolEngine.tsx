@@ -33,7 +33,7 @@ import Animated, {
 import Svg, { Circle, Line, Path } from 'react-native-svg';
 
 import type { BreathPattern } from '../constants/breathwork';
-import { milestoneStage, NEON } from '../constants/theme';
+import { accentFor, alpha, BAND_LABEL, bandFor, milestoneStage, NEON, SURFACE } from '../constants/theme';
 import { XP_PER_MINUTE } from '../services/gamification';
 import { BreathPacer } from './neuro-visualizers/BreathPacer';
 
@@ -184,7 +184,10 @@ export function ActiveProtocolEngine({
   onStop,
 }: ActiveProtocolEngineProps) {
   const stage = milestoneStage(elapsedSec);
-  const ringColor = isPlaying ? stage.color : accent;
+  // Accent is keyed to the entrainment BAND while running, so the same
+  // frequency always reads as the same colour across every surface.
+  const bandColor = accentFor(targetHz);
+  const ringColor = isPlaying ? bandColor : accent;
 
   const progress = useSharedValue(0);
   const breath = useSharedValue(0);
@@ -230,9 +233,9 @@ export function ActiveProtocolEngine({
     <View
       className="mb-6 overflow-hidden rounded-3xl"
       style={{
-        backgroundColor: '#000000',
+        backgroundColor: SURFACE.bg,
         borderWidth: 1,
-        borderColor: isPlaying ? `${ringColor}45` : 'rgba(255,255,255,0.08)',
+        borderColor: isPlaying ? alpha(ringColor, 0.32) : SURFACE.hairline,
         shadowColor: ringColor,
         shadowOpacity: isPlaying ? 0.4 : 0.16,
         shadowRadius: 30,
@@ -242,7 +245,7 @@ export function ActiveProtocolEngine({
     >
       <View
         className="px-5 pb-5 pt-4"
-        style={{ backgroundColor: 'rgba(20,20,22,0.65)' }}
+        style={{ backgroundColor: SURFACE.glass }}
       >
         {/* ── Header strip ─────────────────────────────────────────────── */}
         <View className="flex-row items-center justify-between">
@@ -278,12 +281,21 @@ export function ActiveProtocolEngine({
         <View
           className="mt-3.5 flex-row items-center rounded-xl px-3 py-2"
           style={{
-            backgroundColor: 'rgba(255,255,255,0.03)',
+            backgroundColor: SURFACE.glassDeep,
             borderWidth: 1,
-            borderColor: '#1A1A1E',
-            gap: 14,
+            borderColor: SURFACE.hairline,
+            borderRadius: 999,
+            gap: 12,
           }}
         >
+          <View
+            className="rounded-full px-2 py-0.5"
+            style={{ backgroundColor: alpha(ringColor, 0.16), borderWidth: 1, borderColor: alpha(ringColor, 0.4) }}
+          >
+            <Text className="font-mono text-[9px] font-bold" style={{ color: ringColor }}>
+              {BAND_LABEL[bandFor(targetHz)]}
+            </Text>
+          </View>
           <Text className="font-mono text-[10px]" style={{ color: accent, fontVariant: ['tabular-nums'] }}>
             {targetHz.toFixed(1)} HZ
           </Text>
@@ -429,18 +441,38 @@ export function ActiveProtocolEngine({
         {/* ── Control ──────────────────────────────────────────────────── */}
         <Pressable
           onPress={isPlaying ? onStop : onEngage}
-          className="mt-4 items-center rounded-2xl py-4"
+          className="mt-4 flex-row items-center justify-center rounded-2xl py-4"
           style={{
-            backgroundColor: isPlaying ? 'rgba(248,113,113,0.1)' : `${accent}1C`,
+            // Solid glass control — filled, not hollow. Red channel for stop.
+            backgroundColor: isPlaying ? 'rgba(255,59,48,0.15)' : alpha(accent, 0.14),
             borderWidth: 1,
-            borderColor: isPlaying ? 'rgba(248,113,113,0.38)' : `${accent}55`,
+            borderColor: isPlaying ? 'rgba(255,59,48,0.42)' : alpha(accent, 0.42),
+            shadowColor: isPlaying ? '#FF3B30' : accent,
+            shadowOpacity: 0.45,
+            shadowRadius: 20,
+            shadowOffset: { width: 0, height: 0 },
+            elevation: 10,
+            gap: 9,
           }}
         >
+          {/* Glowing state indicator */}
+          <View
+            style={{
+              width: 7,
+              height: 7,
+              borderRadius: 4,
+              backgroundColor: isPlaying ? '#FF3B30' : accent,
+              shadowColor: isPlaying ? '#FF3B30' : accent,
+              shadowOpacity: 1,
+              shadowRadius: 7,
+              shadowOffset: { width: 0, height: 0 },
+            }}
+          />
           <Text
             className="text-[13px] font-black uppercase tracking-[3px]"
-            style={{ color: isPlaying ? NEON.red : accent }}
+            style={{ color: isPlaying ? '#FF3B30' : accent }}
           >
-            {isPlaying ? 'Disengage' : 'Engage Protocol'}
+            {isPlaying ? 'End Session' : 'Engage Protocol'}
           </Text>
         </Pressable>
       </View>
