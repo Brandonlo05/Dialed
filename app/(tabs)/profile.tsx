@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ProfileSettings } from '../../src/components/ProfileSettings';
 import { NEON } from '../../src/constants/theme';
 import {
   levelForXp,
@@ -250,6 +251,9 @@ export default function ProfileScreen() {
             </View>
           </LinearGradient>
         </View>
+
+        {/* Goal, default gain, hardware status and the diagnostics link */}
+        <ProfileSettings />
       </ScrollView>
     </SafeAreaView>
   );
