@@ -26,11 +26,20 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { MiniPlayer } from '../../src/components/MiniPlayer';
+import { SessionResult } from '../../src/components/SessionResult';
+import { StateCheckIn } from '../../src/components/StateCheckIn';
 import { SessionSummary } from '../../src/components/SessionSummary';
 import { SURFACE, alpha } from '../../src/constants/theme';
 import { useAudioEngine } from '../../src/hooks/useAudioEngine';
 import type { SessionSummaryData } from '../../src/services/gamification';
-import { publishSummary, useSession, usePendingSummary } from '../../src/services/sessionStore';
+import type { CheckInLevel } from '../../src/constants/checkIn';
+import {
+  publishSummary,
+  requestPostCheckIn,
+  useSession,
+  usePendingPostCheckIn,
+  usePendingSummary,
+} from '../../src/services/sessionStore';
 import { loadUserProfile } from '../../src/services/userProfile';
 
 type IoniconName = ComponentProps<typeof Ionicons>['name'];
@@ -81,6 +90,11 @@ export default function TabsLayout() {
   // the Now Playing transport shows the same summary as one ended here.
   const summary = usePendingSummary<SessionSummaryData>();
   const { stop } = useAudioEngine();
+
+  // Post-session read, then the before/after result. Mounted here (not in a
+  // screen) so it fires regardless of which surface ended the session.
+  const postReq = usePendingPostCheckIn();
+  const [afterLevel, setAfterLevel] = useState<CheckInLevel | null>(null);
 
   useEffect(() => {
     loadUserProfile().then((profile) => setStatus(profile ? 'calibrated' : 'new'));
@@ -185,6 +199,26 @@ export default function TabsLayout() {
       </Tabs>
 
       <SessionSummary summary={summary} onClose={() => publishSummary(null)} />
+
+      {/* Ask where they landed... */}
+      <StateCheckIn
+        visible={postReq != null && afterLevel == null}
+        phase="post"
+        onSelect={setAfterLevel}
+        onSkip={() => requestPostCheckIn(null)}
+      />
+
+      {/* ...then show the delta, exactly as they reported it. */}
+      {postReq != null && afterLevel != null && (
+        <SessionResult
+          before={postReq.preState}
+          after={afterLevel}
+          title={postReq.title}
+          minutes={postReq.minutes}
+          accent={postReq.accent}
+          onClose={() => { setAfterLevel(null); requestPostCheckIn(null); }}
+        />
+      )}
     </>
   );
 }

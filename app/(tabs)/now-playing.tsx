@@ -1,43 +1,49 @@
 /**
- * TAB 3 · NOW PLAYING — the destination of every selection in the app.
+ * TAB 3 · NOW PLAYING — breath-first session view.
  *
- * ── THE IDLE STATE (not in the brief, but required) ────────────────────────
- * A centre tab that renders nothing when idle is a dead tab: the user taps it
- * once, finds a blank screen, and learns to avoid the most valuable slot in the
- * bar. So the idle view is a real screen — it surfaces the user's tailored
- * recommendation with a single ENGAGE control. Tapping the centre tab with
- * nothing playing therefore answers "what should I run right now?", which is
- * the question that brought them back to the app.
+ * ── WHY THE PACER IS THE HERO ──────────────────────────────────────────────
+ * This screen used to lead with frequency: a telemetry pill on top, Hz chips
+ * under it, and the breath ring third. That ordering told the user the numbers
+ * were the product. They aren't. Paced breathing is the element here with real
+ * evidence behind it — slow, exhale-weighted breathing reliably shifts
+ * autonomic balance — while binaural/isochronic entrainment has small and
+ * inconsistent support. The audio is the environment, the timer and the
+ * entrainment anchor; the breath is the mechanism.
  *
- * ── VOLUME LIVES HERE ──────────────────────────────────────────────────────
- * The calibrated-gain slider is embedded directly in the active view rather
- * than hidden behind a settings screen, because the 60–70% phase-locking target
- * only means anything while audio is actually playing and the user can hear
- * what they're adjusting.
+ * So the ring now owns the screen, and the frequencies sit beneath it as
+ * technical telemetry — visible for the users who care, subordinate for the
+ * ones who just need to follow the ring. The visual hierarchy now matches
+ * where the effect actually comes from, which is also the only version of this
+ * screen we can defend to a regulator.
+ *
+ * ── CHECK-IN ───────────────────────────────────────────────────────────────
+ * The pre-session read is presented AFTER audio has started, not before it.
+ * NeuroHack's whole promise is one tap from "I feel bad" to sound; putting a
+ * question in front of that would spend the app's best moment on a form. The
+ * audio is already fading in while the user answers.
  *
  * ── RENDER COST ────────────────────────────────────────────────────────────
- * The breath ring, its countdown and the session stopwatch all run in
- * Reanimated worklets. This screen re-renders only when the protocol identity
- * changes — or once a second during Burnout, which is the one preset that
- * publishes a phase countdown into its status line.
+ * Ring, countdown and stopwatch all resolve in Reanimated worklets. This screen
+ * re-renders on protocol identity change, on the check-in, and once a second
+ * during Burnout (the one preset that publishes a phase countdown).
  */
 
-import { ScrollView, Text, View } from 'react-native';
-import { Pressable } from 'react-native';
+import { ScrollView, Text, View, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
 import { BreathPacer } from '../../src/components/neuro-visualizers/BreathPacer';
 import { SessionClock } from '../../src/components/SessionClock';
+import { StateCheckIn } from '../../src/components/StateCheckIn';
 import { VolumeSlider } from '../../src/components/controls/VolumeSlider';
+import type { CheckInLevel } from '../../src/constants/checkIn';
 import { BAND_LABEL, SURFACE, alpha, bandFor } from '../../src/constants/theme';
 import { useAudioEngine } from '../../src/hooks/useAudioEngine';
 import { tapSelect } from '../../src/services/haptics';
-import { useSessionState } from '../../src/services/sessionStore';
+import { updateSession, useSessionState } from '../../src/services/sessionStore';
 import { getTailoredCardConfig } from '../../src/services/tailoredCopy';
 import { getCachedProfile } from '../../src/services/userProfile';
 
-/** Small tracked-out caption used above every block on this screen. */
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <Text
@@ -64,8 +70,6 @@ function IdleView() {
       style={{ flex: 1, paddingHorizontal: 20, justifyContent: 'center' }}
     >
       <View style={{ alignItems: 'center', marginBottom: 34 }}>
-        {/* Dormant ring — same silhouette the live visualizer will occupy, so
-            the transition into a session feels like the screen waking up. */}
         <View
           style={{
             width: 148, height: 148, borderRadius: 74,
@@ -152,7 +156,10 @@ export default function NowPlayingScreen() {
     );
   }
 
-  const { accent, beatHz, carrierHz, title, subtitle, breath, statusLine, startedAt } = session;
+  const {
+    accent, beatHz, carrierHz, title, subtitle,
+    breath, statusLine, startedAt, preAsked,
+  } = session;
   const band = bandFor(beatHz);
 
   return (
@@ -161,81 +168,38 @@ export default function NowPlayingScreen() {
         contentContainerStyle={{ paddingBottom: 130 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Telemetry pill: identity + clock + band ── */}
+        {/* ── Identity strip: small, out of the way ── */}
         <Animated.View
-          entering={FadeInDown.duration(260)}
+          entering={FadeInDown.duration(240)}
           style={{
-            marginHorizontal: 16, marginTop: 10, borderRadius: 16,
-            paddingHorizontal: 15, paddingVertical: 12,
-            backgroundColor: SURFACE.glass,
-            borderWidth: 1, borderColor: SURFACE.hairline,
             flexDirection: 'row', alignItems: 'center',
+            paddingHorizontal: 20, marginTop: 12,
           }}
         >
-          <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
-              <View
-                style={{
-                  width: 7, height: 7, borderRadius: 3.5, backgroundColor: accent,
-                  shadowColor: accent, shadowOpacity: 1, shadowRadius: 7,
-                  shadowOffset: { width: 0, height: 0 },
-                }}
-              />
-              <Text
-                style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '800', letterSpacing: -0.3 }}
-                numberOfLines={1}
-              >
-                {title}
-              </Text>
-            </View>
-            <Text
-              style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11.5, marginTop: 3 }}
-              numberOfLines={1}
-            >
-              {statusLine ?? subtitle}
-            </Text>
-          </View>
-
+          <View
+            style={{
+              width: 6, height: 6, borderRadius: 3, backgroundColor: accent,
+              shadowColor: accent, shadowOpacity: 1, shadowRadius: 6,
+              shadowOffset: { width: 0, height: 0 },
+            }}
+          />
+          <Text
+            style={{
+              color: 'rgba(255,255,255,0.62)', fontSize: 12, fontWeight: '700',
+              letterSpacing: 1.6, textTransform: 'uppercase', marginLeft: 8, flex: 1,
+            }}
+            numberOfLines={1}
+          >
+            {title}
+          </Text>
           <SessionClock
             startedAt={startedAt}
-            style={{ fontSize: 19, fontWeight: '700', letterSpacing: -0.5 }}
+            style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', fontWeight: '600' }}
           />
         </Animated.View>
 
-        {/* ── Frequency telemetry ── */}
-        <View
-          style={{
-            flexDirection: 'row', justifyContent: 'center',
-            gap: 9, marginTop: 13, paddingHorizontal: 16,
-          }}
-        >
-          {[
-            { k: 'BEAT',    v: `${beatHz.toFixed(1)} Hz` },
-            { k: 'CARRIER', v: `${Math.round(carrierHz)} Hz` },
-            { k: 'BAND',    v: BAND_LABEL[band] },
-          ].map((chip) => (
-            <View
-              key={chip.k}
-              style={{
-                borderRadius: 999, paddingHorizontal: 11, paddingVertical: 5,
-                backgroundColor: alpha(accent, 0.1),
-                borderWidth: 1, borderColor: alpha(accent, 0.26),
-              }}
-            >
-              <Text
-                style={{
-                  color: alpha(accent, 0.95), fontSize: 10, fontWeight: '800',
-                  fontFamily: 'Menlo', letterSpacing: 0.6,
-                }}
-              >
-                {chip.k} {chip.v}
-              </Text>
-            </View>
-          ))}
-        </View>
-
-        {/* ── Full-bleed breath visualizer ── */}
-        <View style={{ marginTop: 22 }}>
+        {/* ── HERO: the breath pacer owns the screen ── */}
+        <View style={{ marginTop: 18 }}>
           {breath ? (
             <BreathPacer cycle={breath.cycle} color={accent} carrierHz={carrierHz} />
           ) : (
@@ -247,14 +211,83 @@ export default function NowPlayingScreen() {
           )}
         </View>
 
+        {/* ── Breath identity: what you are actually doing ── */}
+        {breath && (
+          <View style={{ alignItems: 'center', marginTop: 16, paddingHorizontal: 24 }}>
+            <Text
+              style={{
+                color: alpha(accent, 0.95), fontSize: 12, fontWeight: '800',
+                letterSpacing: 2.4, textTransform: 'uppercase',
+              }}
+            >
+              {breath.name}
+            </Text>
+            <Text
+              style={{
+                color: 'rgba(255,255,255,0.38)', fontSize: 12, lineHeight: 18,
+                textAlign: 'center', marginTop: 6,
+              }}
+            >
+              {(60 / Math.max(0.001, breath.cycle[0] + breath.cycle[1] + breath.cycle[2] + breath.cycle[3])).toFixed(1)} breaths/min · follow the ring
+            </Text>
+          </View>
+        )}
+
+        {/* ── Entrainment telemetry: subordinate, technical, honest ── */}
+        <View style={{ paddingHorizontal: 20, marginTop: 24 }}>
+          <View
+            style={{
+              borderRadius: 14, paddingHorizontal: 14, paddingVertical: 11,
+              backgroundColor: SURFACE.glass,
+              borderWidth: 1, borderColor: SURFACE.hairline,
+            }}
+          >
+            <Text
+              style={{
+                color: 'rgba(255,255,255,0.28)', fontSize: 8.5, fontWeight: '800',
+                letterSpacing: 2.4, textTransform: 'uppercase', marginBottom: 6,
+              }}
+            >
+              Entrainment Telemetry
+            </Text>
+            <Text
+              style={{
+                color: 'rgba(255,255,255,0.6)', fontSize: 11.5,
+                fontFamily: 'Menlo', lineHeight: 17,
+              }}
+            >
+              {beatHz.toFixed(1)} Hz {BAND_LABEL[band]} · {Math.round(carrierHz)} Hz carrier
+            </Text>
+            {statusLine ? (
+              <Text
+                style={{
+                  color: alpha(accent, 0.75), fontSize: 11,
+                  fontFamily: 'Menlo', marginTop: 4,
+                }}
+              >
+                {statusLine}
+              </Text>
+            ) : (
+              <Text
+                style={{
+                  color: 'rgba(255,255,255,0.3)', fontSize: 11, lineHeight: 16, marginTop: 4,
+                }}
+                numberOfLines={2}
+              >
+                {subtitle}
+              </Text>
+            )}
+          </View>
+        </View>
+
         {/* ── Universal calibrated gain ── */}
-        <View style={{ paddingHorizontal: 18, marginTop: 26 }}>
+        <View style={{ paddingHorizontal: 20, marginTop: 22 }}>
           <SectionLabel>Calibrated Entrainment Gain</SectionLabel>
           <VolumeSlider />
         </View>
 
         {/* ── Transport ── */}
-        <View style={{ paddingHorizontal: 18, marginTop: 22 }}>
+        <View style={{ paddingHorizontal: 20, marginTop: 20 }}>
           <Pressable
             onPress={() => { void stop(); }}
             style={({ pressed }) => ({
@@ -286,6 +319,14 @@ export default function NowPlayingScreen() {
           </Pressable>
         </View>
       </ScrollView>
+
+      {/* Pre-session read — over the top, audio already running underneath */}
+      <StateCheckIn
+        visible={!preAsked}
+        phase="pre"
+        onSelect={(level: CheckInLevel) => updateSession({ preState: level, preAsked: true })}
+        onSkip={() => updateSession({ preAsked: true })}
+      />
     </SafeAreaView>
   );
 }

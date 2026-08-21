@@ -24,6 +24,7 @@
 import { useCallback, useSyncExternalStore } from 'react';
 
 import type { BreathPattern } from '../constants/breathwork';
+import type { CheckInLevel } from '../constants/checkIn';
 import type { ProgramId } from '../constants/presetUx';
 import type { NeuroHackId } from '../constants/neurohack';
 
@@ -50,6 +51,19 @@ export type SessionState = {
 
   /** Epoch ms the session began; null when idle. Drives the stopwatch. */
   startedAt: number | null;
+
+  /**
+   * Pre-session check-in, captured before audio starts. Held here rather than
+   * in the check-in component so it survives tab switches and is still around
+   * when the session ends on a different screen.
+   */
+  preState: CheckInLevel | null;
+  /**
+   * Whether the pre-session read has been offered yet. Separate from
+   * `preState` so a deliberate skip is remembered and the sheet does not
+   * reappear every time the user returns to the Now Playing tab.
+   */
+  preAsked: boolean;
 };
 
 const IDLE: SessionState = {
@@ -64,6 +78,8 @@ const IDLE: SessionState = {
   breath: null,
   statusLine: null,
   startedAt: null,
+  preState: null,
+  preAsked: false,
 };
 
 let state: SessionState = IDLE;
@@ -114,12 +130,21 @@ export function beginSession(next: Omit<Partial<SessionState>, 'isPlaying' | 'st
   emit();
 }
 
-/** Returns elapsed minutes so the caller can record XP, then clears state. */
-export function endSession(): number {
+/**
+ * Clears state and hands back what the caller needs to close the loop: elapsed
+ * minutes for XP, and the pre-session level so the post-session check-in can
+ * be compared against it. Both are read before the reset, because the session
+ * may be ended from a surface that never saw them.
+ */
+export function endSession(): { minutes: number; preState: CheckInLevel | null } {
   const startedAt = state.startedAt;
+  const preState = state.preState;
   state = { ...IDLE };
   emit();
-  return startedAt ? (Date.now() - startedAt) / 60_000 : 0;
+  return {
+    minutes: startedAt ? (Date.now() - startedAt) / 60_000 : 0,
+    preState,
+  };
 }
 
 export function getSession(): SessionState {
@@ -174,4 +199,45 @@ function getSummary(): SummaryPayload | null {
 /** Mounted once, in the tab layout. */
 export function usePendingSummary<T>(): T | null {
   return useSyncExternalStore(subscribeSummary, getSummary, getSummary) as T | null;
+}
+
+// ── Post-session check-in channel ────────────────────────────────────────────
+//
+// Same reasoning as the summary channel: the session can end from any surface,
+// but the check-in sheet is mounted once in the tab layout. Publishing the
+// request here (rather than returning it) means the post read happens whether
+// the user hit END on Now Playing, tapped stop in the mini-player from the
+// Library, or a preset ran itself to completion.
+//
+// Only published when a pre-session level exists — asking "where are you now?"
+// with nothing to compare against is a question with no payoff.
+
+export type PostCheckInRequest = {
+  preState: CheckInLevel;
+  protocolId: string | null;
+  title: string;
+  accent: string;
+  minutes: number;
+};
+
+let pendingPostCheckIn: PostCheckInRequest | null = null;
+const postListeners = new Set<() => void>();
+
+export function requestPostCheckIn(req: PostCheckInRequest | null): void {
+  pendingPostCheckIn = req;
+  for (const l of postListeners) l();
+}
+
+function subscribePost(listener: () => void): () => void {
+  postListeners.add(listener);
+  return () => { postListeners.delete(listener); };
+}
+
+function getPost(): PostCheckInRequest | null {
+  return pendingPostCheckIn;
+}
+
+/** Mounted once, in the tab layout. */
+export function usePendingPostCheckIn(): PostCheckInRequest | null {
+  return useSyncExternalStore(subscribePost, getPost, getPost);
 }

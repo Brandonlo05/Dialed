@@ -55,6 +55,7 @@ import {
   endSession,
   getSession,
   publishSummary,
+  requestPostCheckIn,
   updateSession,
 } from '../services/sessionStore';
 import { getTailoredCardConfig } from '../services/tailoredCopy';
@@ -76,8 +77,21 @@ export function useAudioEngine(options: Options = {}) {
     const prev = getSession();
     stopNeuroPreset();
     await stopAudioSession();
-    const minutes = endSession();
+    const { minutes, preState } = endSession();
     if (!prev.isPlaying) return;
+
+    // Close the loop: if they told us where they started, ask where they
+    // landed. Published to the store so this fires no matter which surface
+    // ended the session.
+    if (preState != null) {
+      requestPostCheckIn({
+        preState,
+        protocolId: prev.protocolId,
+        title: prev.title,
+        accent: prev.accent,
+        minutes,
+      });
+    }
 
     // The Daily Rep only counts toward the streak if the user actually sat
     // through it. Checked here rather than in the card, because the session
